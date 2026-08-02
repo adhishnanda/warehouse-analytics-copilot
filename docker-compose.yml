@@ -1,0 +1,13 @@
+# Single consolidated compose file for the whole stack.
+# Week 1: warehouse seeding only. Later weeks add api, ui, and kestra
+# services to this same file rather than introducing separate compose files.
+
+services:
+  seed:
+    build: .
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DUCKDB_PATH=/app/data/warehouse.duckdb
+      - TPCH_SCALE_FACTOR=${TPCH_SCALE_FACTOR:-0.1}
+    command: ["python", "data/seed_warehouse.py"]
