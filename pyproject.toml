@@ -1,0 +1,14 @@
+[project]
+name = "warehouse-analytics-copilot"
+version = "0.1.0"
+description = "Agentic text-to-SQL over a governed semantic layer"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "duckdb>=1.1,<2",
+    "pyyaml>=6,<7",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8,<9",
+]
