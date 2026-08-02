@@ -240,6 +240,69 @@ No scope cuts.
   rewrite -> hybrid_search -> rerank by default, so this measurement
   confirmed the existing default rather than requiring a code change.
 
+**Day 11 — LLM evaluation**
+- Verified exact current model IDs against the live APIs rather than
+  guessing from memory: Groq's `llama-3.3-70b-versatile`, OpenAI's
+  `gpt-4o-mini`. Discovered Groq's Cloudflare protection blocks
+  `urllib`'s default User-Agent (HTTP 403, Cloudflare error 1010) —
+  fixed by setting a normal one.
+- `src/llm_client.py`: added `chat_openai_compatible` (shared by Groq and
+  OpenAI, which use the same request/response shape) plus a
+  `chat_with_usage` variant of the existing Ollama `chat()` so all three
+  backends report token usage consistently; refactored `chat()` to a
+  thin wrapper over it with no behaviour change (reran the existing
+  rewriter/agent-loop test suites to confirm).
+- `evaluation/run_llm_eval.py`: 2 models x 2 prompts (baseline: raw
+  DuckDB schema dump only, vs schema-grounded: the real `search_schema`
+  pipeline), execution accuracy against the golden set via
+  order-insensitive result-set comparison.
+- **Incident, in full, because it's instructive:** the first full run
+  (Groq `llama-3.3-70b-versatile` + `gpt-4o-mini`) produced a suspicious
+  result — Groq/schema-grounded scored exactly 0.000 on both Tier 2 (20
+  questions) and Tier 3 (10 questions). Investigated rather than reported
+  it: traced to Groq's free-tier daily token quota (100K/day) being
+  exhausted partway through the run by cumulative usage from earlier
+  smoke tests and a killed-and-restarted attempt. A real bug compounded
+  it — the `except ApiUnavailableError` branch in `run_combination`
+  appended the failed outcome but never printed a progress line, so the
+  log silently jumped from question 19 straight to a final accuracy
+  figure with no visible sign anything had gone wrong. Fixed the missing
+  print, and added `generate_sql_with_retry` with proper backoff
+  specifically for HTTP 429 responses (parses Groq's "try again in Xm
+  Ys" hint from the error body), covered by four new unit tests.
+- The retry-equipped rerun then ran for **over three hours** without
+  finishing, because the daily quota wasn't just transiently rate-limited
+  — it was genuinely exhausted, so the (correctly-functioning) retry
+  logic was waiting ~5.5 minutes between nearly every single call. This
+  was let run unsupervised for too long before catching it; you asked
+  directly whether it was stuck, which prompted killing it and properly
+  diagnosing rather than continuing to wait. In hindsight the retry
+  design was sound for transient rate limits but wrong for a truly
+  exhausted daily budget, and that distinction should have been checked
+  before committing to a multi-hour wait.
+- Decision (with you): drop Groq entirely rather than keep fighting an
+  external quota. Switched the free-tier arm to local Ollama `llama3` —
+  zero external quota, fully bounded runtime, and a more direct match to
+  `PROJECT_PLAN.md` Section 5.5's actual framing ("Development: Groq free
+  tier **and/or local Ollama**... Final evaluation runs: one small paid
+  model") than the original Groq choice was. This is also a more
+  practically useful comparison for the project's own narrative: free
+  local model vs paid hosted model directly answers "when is it worth
+  paying," rather than comparing two hosted providers.
+- Clean run completed in ~13 minutes, no external dependency to fail:
+  **`llama3`/baseline 0.340, `llama3`/schema-grounded 0.600,
+  `gpt-4o-mini`/baseline 0.620, `gpt-4o-mini`/schema-grounded 0.880
+  (winner, used in production)**. Schema grounding improved both models
+  by roughly the same margin (+26pp), and the by-tier breakdown lines up
+  with the project's central thesis before the Tier-3 ablation has even
+  formally run: Tier 3 (metric-definition questions) improved the most
+  from grounding — `llama3` 0.100 -> 0.700, `gpt-4o-mini` 0.400 -> 1.000.
+  One transient API/connection error occurred in 200 calls (disclosed in
+  the report, counted as incorrect per the stated methodology, not
+  excluded).
+- Full numbers, the Groq incident writeup, and the tier breakdown are in
+  `evaluation/results/llm_eval.md`, written to stand on its own.
+
 ### Measured (real numbers from this session)
 
 - `fact_orders`: 600,572 rows; `dim_customer`: 15,000; `dim_product`:
@@ -256,25 +319,39 @@ No scope cuts.
   0.741; **Hybrid + rerank 1.000 / 0.758 (winner, used in production)**.
   Full by-tier breakdown and methodology in
   `evaluation/results/retrieval_eval.md`.
-- No formal LLM evaluation numbers yet (Section 7.3: model x prompt
-  comparison) — that's Day 11, not yet run.
+- LLM evaluation (all 50 golden questions): `llama3`/baseline 0.340,
+  `llama3`/schema-grounded 0.600, `gpt-4o-mini`/baseline 0.620,
+  **`gpt-4o-mini`/schema-grounded 0.880 (winner, used in production)**.
+  Full by-tier breakdown, the Groq incident, and cost (78,597 OpenAI
+  tokens total, real figures) in `evaluation/results/llm_eval.md`.
+- Test suite: **202/202 passing** (`uv run pytest`).
 
 ### What's next
 
-Week 1 and Week 2 Days 8-10 are complete. Next, in order (see
+Week 1 and Week 2 Days 8-11 are complete. Next, in order (see
 `PROJECT_PLAN.md` Section 8):
-1. **Day 11** — LLM evaluation: 2 models x 2 prompts, execution accuracy
-   against the golden set, stated winner. This is where a paid model is
-   first considered for the final reproducible runs — **flag before
-   making any paid API call**, per `CLAUDE.md` rule 5. Needs a decision
-   with you on which paid model (if any) and API key access before this
-   can run.
-2. **Day 12** — measure self-correction lift (retry loop on vs off) using
+1. **Day 12** — measure self-correction lift (retry loop on vs off) using
    the golden set and the agent loop built Days 6-7.
-3. **Days 13-14** — Tier-3 retrieval ablation (the headline result: run
+2. **Days 13-14** — Tier-3 retrieval ablation (the headline result: run
    Tier-3 questions with semantic layer retrieval disabled vs enabled)
-   and error analysis write-up.
+   and error analysis write-up. Day 11's by-tier numbers already point at
+   the expected direction (Tier 3 improved most from grounding), so this
+   should confirm and formalise that rather than being a surprise.
 
-Nothing from Days 1-10 is left unfinished. No paid API calls made this
-session (cost discipline honoured — only local DuckDB, a local
-open-weights embedding model, and a local Ollama model were used).
+Nothing from Days 1-11 is left unfinished. One paid API call series was
+made this session (OpenAI `gpt-4o-mini`, flagged before use per
+`CLAUDE.md` rule 5): total token usage across all runs (smoke tests, the
+Groq-quota-corrupted run, and the clean final run) was approximately
+160,000 tokens — a real, measured figure, summed from actual per-run
+usage totals (79,407 + 78,597 from the two full runs, plus smaller
+smoke-test calls). Converting to cost using OpenAI's published
+`gpt-4o-mini` pricing (verified live from platform.openai.com/docs/pricing:
+$0.15/1M input tokens, $0.60/1M output tokens) and the prompt/completion
+split observed in individual calls (~96% input) gives an estimated total
+cost of around $0.03 — an estimate, not an exact figure, since only
+combined totals were logged for the two full runs, not their exact
+prompt/completion split. Either way, this is nowhere near the plan's
+"low single-digit euros" ceiling. Groq was used during development but
+dropped from the final evaluation after its free-tier quota was
+exhausted (see Day 11 above) — no other paid or metered services were
+used.
