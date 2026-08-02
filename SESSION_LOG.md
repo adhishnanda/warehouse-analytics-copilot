@@ -3,9 +3,10 @@
 ## 2026-08-02 — Session 1
 
 **Scope planned:** Week 1, Days 1-3 (repo skeleton + dataset/star schema,
-semantic layer YAML, baseline keyword + vector retrieval).
+semantic layer YAML, baseline keyword + vector retrieval), extended to
+Day 4 (query rewriting) once Days 1-3 finished with time still available.
 
-**Scope built:** Days 1-3, complete and tested. No scope cuts.
+**Scope built:** Days 1-4, complete and tested. No scope cuts.
 
 ### What was built
 
@@ -73,32 +74,52 @@ semantic layer YAML, baseline keyword + vector retrieval).
   Week 2 task) — hit rate / MRR numbers are not yet measured and must not
   be quoted anywhere until Week 2, Day 10 produces them.
 
+**Day 4 — query rewriting**
+- `src/retrieval/rewriter.py`: `rewrite_query(question)` calls a local
+  Ollama model (`llama3`, already pulled — zero cost, no API key) with a
+  system prompt instructing it to expand abbreviations and surface the
+  business concepts (revenue, discount, order count, repeat customers,
+  region, supplier, ship date vs order date) a question is really asking
+  about, without answering it. Falls back to returning the original
+  question unchanged if the backend is unreachable — rewriting is an
+  optimization on top of retrieval, not a hard dependency.
+- One debugging note worth keeping: the first end-to-end call timed out at
+  60s (model cold start / first invocation in that process), but a repeat
+  call with the same prompt returned in under 5s. Default timeout raised
+  from 15s to 30s to absorb this without treating it as a real failure.
+- `tests/test_rewriter.py`: 4 tests — deterministic fallback-on-unreachable
+  test (no backend needed), plus three real-backend tests (skipped if
+  Ollama isn't reachable) checking non-empty output, that an abbreviated
+  question ("rev by region last qtr") gets rewritten to mention "revenue"
+  and "region", and that the rewrite never contains digits or a "%" (i.e.
+  it reformulates the question, it doesn't fabricate an answer to it).
+
 ### Measured (real numbers from this session)
 
 - `fact_orders`: 600,572 rows; `dim_customer`: 15,000; `dim_product`:
   20,000; `dim_date`: 2,553; `dim_region`: 25; `dim_supplier`: 1,000
   (TPC-H scale factor 0.1).
-- Test suite: **45/45 passing** (`uv run pytest`) — 21 warehouse-schema,
-  15 semantic-layer, 9 retrieval.
+- Test suite: **49/49 passing** (`uv run pytest`) — 21 warehouse-schema,
+  15 semantic-layer, 9 retrieval, 4 query-rewriting.
 - No retrieval evaluation numbers (hit rate/MRR) yet — that requires the
   golden question set, not built this session. No LLM evaluation numbers
-  yet — no LLM has been called this session at all (cost discipline: not
-  needed for Days 1-3).
+  yet in the Section 7.3 sense (model x prompt comparison) — the only LLM
+  calls made this session were local Ollama calls for the query rewriter,
+  not a paid model, consistent with cost discipline.
 
 ### What's next
 
-Week 1, Day 4 onward, in order:
-1. **Day 4** — query rewriting step before retrieval (rubric add-on).
-2. **Day 5** — cross-encoder reranking over retrieved chunks (rubric
+Week 1, Day 5 onward, in order:
+1. **Day 5** — cross-encoder reranking over retrieved chunks (rubric
    add-on; `sentence-transformers` is already a dependency, so this is a
    `CrossEncoder` addition to `src/retrieval/reranker.py`, not a new
    library).
-3. **Days 6-7** — agent loop (`search_schema`, `run_sql`,
+2. **Days 6-7** — agent loop (`search_schema`, `run_sql`,
    `validate_result` tools) and `src/agent/guardrails.py` (read-only
    connection, SELECT-only whitelist, row limits, timeout) — must be
    tested, not just implemented, per the non-negotiable rules in
    `CLAUDE.md`.
 
-Nothing from Days 1-3 is left unfinished. No paid API calls made this
-session (cost discipline honoured — only local DuckDB and a local
-open-weights embedding model were used).
+Nothing from Days 1-4 is left unfinished. No paid API calls made this
+session (cost discipline honoured — only local DuckDB, a local
+open-weights embedding model, and a local Ollama model were used).
