@@ -49,8 +49,10 @@ def _render_metric_docs(path: Path) -> list[Document]:
     metrics = yaml.safe_load(path.read_text())
     docs = []
     for name, meta in metrics.items():
+        answers_like = ", ".join(meta.get("answers_questions_like", []))
         text = (
             f"Metric: {name}\n"
+            f"Answers questions like: {answers_like}\n"
             f"Description: {meta['description'].strip()}\n"
             f"SQL:\n{meta['sql'].strip()}"
         )

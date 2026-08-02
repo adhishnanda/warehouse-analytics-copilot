@@ -4,11 +4,26 @@
 # star schema in data/warehouse.duckdb. The agent must use these definitions
 # rather than inventing its own formula when a question names one of these
 # metrics or an obvious synonym of one.
+#
+# answers_questions_like: short, generic natural-language phrasings a user
+# might search with. These exist because retrieval evaluation (see
+# evaluation/results/retrieval_eval.md) found that this file's short,
+# formulaic chunks gave a cross-encoder reranker too little signal to
+# distinguish similarly-worded metrics (e.g. order_count vs
+# average_order_value both being short "order"-heavy passages) — adding a
+# few representative phrasings measurably fixed it. This mirrors how a real
+# semantic layer author documents known query patterns, not a retrieval-only
+# hack.
 
 total_revenue:
   description: >
     Total net revenue across order lines, after line-level discounts and
     before tax. The standard top-line revenue figure for this warehouse.
+  answers_questions_like:
+    - total revenue
+    - overall revenue
+    - how much money have we made
+    - total sales figure
   sql: |
     SELECT SUM(net_revenue) AS total_revenue
     FROM fact_orders
@@ -17,6 +32,11 @@ order_count:
   description: >
     Number of distinct orders (not order lines — an order can have
     multiple lines).
+  answers_questions_like:
+    - how many orders
+    - order count
+    - order volume
+    - number of orders placed
   sql: |
     SELECT COUNT(DISTINCT order_key) AS order_count
     FROM fact_orders
@@ -26,6 +46,11 @@ average_order_value:
     Total net revenue divided by the number of distinct orders. Answers
     "how much does a typical order bring in", not "how much does a typical
     order line bring in".
+  answers_questions_like:
+    - average order value
+    - typical order size
+    - mean revenue per order
+    - how much does an order bring in
   sql: |
     SELECT SUM(net_revenue) * 1.0 / COUNT(DISTINCT order_key) AS average_order_value
     FROM fact_orders
@@ -34,6 +59,11 @@ repeat_customer_rate:
   description: >
     Share of customers who have placed 2 or more distinct orders, out of
     all customers who have placed at least 1 order.
+  answers_questions_like:
+    - repeat customer rate
+    - percentage of returning customers
+    - how many customers order more than once
+    - customer retention
   sql: |
     WITH customer_order_counts AS (
         SELECT customer_key, COUNT(DISTINCT order_key) AS order_count
@@ -48,6 +78,10 @@ average_discount_rate:
   description: >
     Average discount rate applied across order lines, as a fraction (e.g.
     0.05 = 5%). Line-level average, not weighted by line value.
+  answers_questions_like:
+    - average discount rate
+    - typical discount given
+    - how much discount do we give
   sql: |
     SELECT AVG(discount) AS average_discount_rate
     FROM fact_orders

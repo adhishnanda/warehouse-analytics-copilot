@@ -67,6 +67,7 @@ def test_metrics_file_has_required_keys():
     for name, meta in metrics.items():
         assert meta["description"].strip(), f"{name} missing description"
         assert meta["sql"].strip(), f"{name} missing sql"
+        assert meta.get("answers_questions_like"), f"{name} missing answers_questions_like"
 
 
 def test_metrics_sql_executes_and_returns_a_value(con):
