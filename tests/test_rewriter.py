@@ -35,7 +35,10 @@ requires_ollama = pytest.mark.skipif(
 
 
 def test_fallback_returns_original_question_when_backend_unreachable(monkeypatch):
-    monkeypatch.setattr(rewriter, "OLLAMA_BASE_URL", "http://localhost:1")
+    def _raise(*_args, **_kwargs):
+        raise rewriter.OllamaUnavailableError("backend unreachable")
+
+    monkeypatch.setattr(rewriter, "chat", _raise)
     question = "what was the rev by region last qtr"
     assert rewrite_query(question, timeout=2.0) == question
 

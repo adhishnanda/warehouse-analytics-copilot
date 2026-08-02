@@ -8,11 +8,7 @@ evaluation runs in Week 2.
 
 from __future__ import annotations
 
-import json
-import urllib.error
-import urllib.request
-
-from src.config import OLLAMA_BASE_URL, OLLAMA_MODEL
+from src.llm_client import OllamaUnavailableError, chat
 
 SYSTEM_PROMPT = (
     "You are the query rewriting step in a text-to-SQL system over a small "
@@ -35,25 +31,8 @@ def rewrite_query(question: str, timeout: float = 30.0) -> str:
     model backend is unreachable — rewriting is an optimization, not a
     required step, so retrieval must still work without it.
     """
-    payload = {
-        "model": OLLAMA_MODEL,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": question},
-        ],
-        "stream": False,
-    }
-    request = urllib.request.Request(
-        f"{OLLAMA_BASE_URL}/api/chat",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            body = json.loads(response.read())
-    except (urllib.error.URLError, OSError, TimeoutError, json.JSONDecodeError):
+        rewritten = chat(SYSTEM_PROMPT, question, timeout=timeout)
+    except OllamaUnavailableError:
         return question
-
-    rewritten = body.get("message", {}).get("content", "").strip()
     return rewritten or question
