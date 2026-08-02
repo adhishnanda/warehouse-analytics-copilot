@@ -3,11 +3,13 @@
 ## 2026-08-02 — Session 1
 
 **Scope planned:** Week 1, Days 1-3 (repo skeleton + dataset/star schema,
-semantic layer YAML, baseline keyword + vector retrieval), extended to
-Day 4 (query rewriting) and Day 5 (cross-encoder reranking) once earlier
-days finished with time still available.
+semantic layer YAML, baseline keyword + vector retrieval), extended
+progressively through Day 4 (query rewriting), Day 5 (cross-encoder
+reranking), and Days 6-7 (agent loop + guardrails) as each prior day
+finished with time still available.
 
-**Scope built:** Days 1-5, complete and tested. No scope cuts.
+**Scope built:** Days 1-7, complete and tested. All of Week 1 is done.
+No scope cuts.
 
 ### What was built
 
@@ -111,32 +113,110 @@ days finished with time still available.
   This mirrors the paraphrase test from Day 3's retrieval suite — a test
   that would fail if the technique weren't actually doing anything.
 
+**Days 6-7 — agent loop and guardrails**
+- `src/llm_client.py`: extracted the Ollama chat-request/timeout/error
+  handling that Day 4's rewriter already had into one shared module,
+  since the SQL generator needed the identical pattern — refactored
+  `rewriter.py` to use it and re-ran its tests to confirm no regression.
+- `src/db/duckdb_client.py`: `get_connection()` opens DuckDB with
+  `read_only=True`. Verified directly (not just asserted) that this
+  blocks CREATE/INSERT/UPDATE/DELETE/DROP even when guardrail checks are
+  bypassed entirely — this is the outermost, connection-level safety
+  layer, independent of the statement-level checks below.
+- `src/agent/guardrails.py`: `check_select_only` (single statement,
+  starts with SELECT/WITH, no write/DDL/admin keywords, no semicolon
+  stacking), `apply_row_limit` (wraps every query in an outer
+  `SELECT * FROM (...) LIMIT max_rows + 1` so truncation can be detected
+  rather than guessed), and `run_guarded_query` (executes on a watchdog
+  thread and calls `con.interrupt()` if it exceeds the timeout). Timeout
+  behaviour was calibrated empirically before writing tests: a full
+  self-cross-join of `fact_orders` (600k x 600k rows) reliably takes
+  ~21s, and a 1.0s timeout interrupts it in ~1.0s, with the connection
+  confirmed still usable immediately afterward. 27 tests, including
+  parametrised rejection of 13 different disallowed statement shapes.
+- `src/agent/tools.py`: `search_schema` composes Days 3-5 (rewrite ->
+  hybrid_search -> rerank) into one call; `run_sql` wraps
+  `run_guarded_query`; `validate_result` is a heuristic, not an LLM
+  call — rejects empty/all-NULL results, and additionally checks that
+  any question naming a "rate"/"share"/"percentage" gets back a value in
+  [0, 1], since that's how every rate metric in `metrics.yml` is actually
+  defined. This caught nothing artificial — it's built directly off the
+  real metric definitions from Day 2.
+- `src/agent/loop.py`: `generate_sql` prompts the local Ollama model with
+  the retrieved context and asks for one SQL statement in a fenced code
+  block; `answer_question` runs retrieve -> generate -> execute ->
+  validate, retrying up to `MAX_ATTEMPTS = 2` with the previous error fed
+  back into the next generation attempt.
+- One real bug caught by manual end-to-end testing before writing formal
+  tests: the SQL-extraction regex required a closing ` ```sql ` fence,
+  but the local model sometimes doesn't close it. This silently left the
+  fence markers inside the "SQL", which then failed the SELECT-only
+  guardrail for the wrong reason (looked like a rejected write, was
+  actually a parsing bug). Fixed by stripping fences from either end
+  independently rather than requiring both — added directly to the
+  regression tests (`test_extract_sql`, parametrised on closed/unclosed/
+  no-fence/language-tagged inputs).
+- `tests/test_agent_loop.py`: mixes deterministic tests (LLM call
+  monkeypatched, so retry-stops-on-success / retries-on-guardrail-
+  violation / stops-immediately-if-backend-down are verified without
+  depending on model quality) with real end-to-end tests against the
+  live Ollama backend and the actual warehouse (skipped if Ollama isn't
+  reachable).
+- Real end-to-end run against `llama3` (local, zero cost) on three
+  questions, observed directly, not cherry-picked: "How many orders do
+  we have in total?" -> succeeded, 150,000. "What is our repeat customer
+  rate?" -> succeeded, 0.6665. "What is total revenue by region?" ->
+  **failed** after both attempts — the model hallucinated column names
+  (`key` instead of `nation_key`, `region` instead of `region_name`) on
+  both tries despite correct context being retrieved. The guardrails
+  caught each as a genuine DuckDB binder error, fed it back, and the
+  system correctly reported failure rather than a wrong answer. This is
+  an honest, expected limitation of an 8B local model on a join-heavy
+  question, not a bug — and it's exactly the kind of result Week 2's
+  LLM evaluation and Tier-3 ablation are designed to measure formally,
+  rather than anecdotally as here.
+
 ### Measured (real numbers from this session)
 
 - `fact_orders`: 600,572 rows; `dim_customer`: 15,000; `dim_product`:
   20,000; `dim_date`: 2,553; `dim_region`: 25; `dim_supplier`: 1,000
   (TPC-H scale factor 0.1).
-- Test suite: **54/54 passing** (`uv run pytest`) — 21 warehouse-schema,
-  15 semantic-layer, 9 retrieval, 4 query-rewriting, 5 reranking.
-- No retrieval evaluation numbers (hit rate/MRR) yet — that requires the
-  golden question set, not built this session. No LLM evaluation numbers
-  yet in the Section 7.3 sense (model x prompt comparison) — the only LLM
-  calls made this session were local Ollama calls for the query rewriter,
-  not a paid model, consistent with cost discipline.
+- Test suite: **110/110 passing** (`uv run pytest`) — 21 warehouse-schema,
+  15 semantic-layer, 9 retrieval, 4 query-rewriting, 5 reranking, 6
+  duckdb-client, 27 guardrails, 10 agent-tools, 11 agent-loop, 2
+  llm-client.
+- Three real (uncherry-picked) end-to-end agent runs against local
+  `llama3`: 2/3 succeeded with correct answers (order count 150,000;
+  repeat customer rate 0.6665); 1/3 failed cleanly after exhausting
+  retries on a join-heavy question, with the failure mode (hallucinated
+  column names) captured accurately by the guardrails rather than
+  silently producing a wrong number. This is anecdotal, not a measured
+  accuracy rate — Week 2, Day 11 produces the real number.
+- No retrieval evaluation numbers (hit rate/MRR) yet — needs the golden
+  question set. No formal LLM evaluation numbers yet (Section 7.3: model
+  x prompt comparison) — only local Ollama calls made this session, no
+  paid model, consistent with cost discipline.
 
 ### What's next
 
-Week 1, Days 6-7:
-- Agent loop (`search_schema`, `run_sql`, `validate_result` tools) and
-  `src/agent/guardrails.py` (read-only connection, SELECT-only whitelist,
-  row limits, timeout) — must be tested, not just implemented, per the
-  non-negotiable rules in `CLAUDE.md`. `search_schema` should compose the
-  Day 3-5 pieces built this session: rewrite -> hybrid_search -> rerank.
-- This closes out Week 1 entirely (all three "best practice" retrieval
-  rubric items — hybrid search, query rewriting, reranking — are now
-  implemented; Week 2 is where they get formally evaluated against the
-  golden question set).
+Week 1 is complete — repo, warehouse, semantic layer, hybrid retrieval,
+query rewriting, reranking, agent loop, and tested guardrails are all in
+place. Week 2, in order (see `PROJECT_PLAN.md` Section 8):
+1. **Days 8-9** — write the 50 golden question-SQL pairs across the three
+   difficulty tiers. This defines what "correct" means before any
+   evaluation code is written against it, and should draw on the real
+   failure mode observed above (join-heavy, multi-table questions are
+   where this system is currently weakest).
+2. **Day 10** — retrieval evaluation: keyword vs vector vs hybrid vs
+   hybrid+rerank, hit rate + MRR, stated winner.
+3. **Day 11** — LLM evaluation: 2 models x 2 prompts, execution accuracy,
+   stated winner. This is also where a paid model is first considered
+   for the final reproducible runs — flag before making any paid call,
+   per `CLAUDE.md` rule 5.
+4. **Day 12** — measure self-correction lift (retry loop on vs off).
+5. **Days 13-14** — Tier-3 retrieval ablation (the headline result) and
+   error analysis write-up.
 
-Nothing from Days 1-5 is left unfinished. No paid API calls made this
+Nothing from Days 1-7 is left unfinished. No paid API calls made this
 session (cost discipline honoured — only local DuckDB, a local
 open-weights embedding model, and a local Ollama model were used).
