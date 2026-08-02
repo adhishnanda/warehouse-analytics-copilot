@@ -4,9 +4,10 @@
 
 **Scope planned:** Week 1, Days 1-3 (repo skeleton + dataset/star schema,
 semantic layer YAML, baseline keyword + vector retrieval), extended to
-Day 4 (query rewriting) once Days 1-3 finished with time still available.
+Day 4 (query rewriting) and Day 5 (cross-encoder reranking) once earlier
+days finished with time still available.
 
-**Scope built:** Days 1-4, complete and tested. No scope cuts.
+**Scope built:** Days 1-5, complete and tested. No scope cuts.
 
 ### What was built
 
@@ -94,13 +95,29 @@ Day 4 (query rewriting) once Days 1-3 finished with time still available.
   and "region", and that the rewrite never contains digits or a "%" (i.e.
   it reformulates the question, it doesn't fabricate an answer to it).
 
+**Day 5 — cross-encoder reranking**
+- `src/retrieval/reranker.py`: `Reranker.rerank(query, candidates, k)` scores
+  each (query, document) pair jointly with `cross-encoder/ms-marco-MiniLM-L-6-v2`
+  (local, no API cost) and returns the top-k by that score. Takes hybrid
+  search's candidate list as input rather than searching independently —
+  reranking is a precision-focused second pass over a small candidate set,
+  not a first-pass retrieval method.
+- `tests/test_reranker.py`: 5 tests, including one that demonstrates the
+  actual value of reranking rather than just checking it runs — for "when
+  did suppliers ship items late", hybrid search's top result is
+  `dim_supplier` (lexical/embedding match on "suppliers"), but shipping
+  lateness is documented on `fact_orders` (`ship_date_key`), not on
+  `dim_supplier`. The cross-encoder reorders `fact_orders` to first place.
+  This mirrors the paraphrase test from Day 3's retrieval suite — a test
+  that would fail if the technique weren't actually doing anything.
+
 ### Measured (real numbers from this session)
 
 - `fact_orders`: 600,572 rows; `dim_customer`: 15,000; `dim_product`:
   20,000; `dim_date`: 2,553; `dim_region`: 25; `dim_supplier`: 1,000
   (TPC-H scale factor 0.1).
-- Test suite: **49/49 passing** (`uv run pytest`) — 21 warehouse-schema,
-  15 semantic-layer, 9 retrieval, 4 query-rewriting.
+- Test suite: **54/54 passing** (`uv run pytest`) — 21 warehouse-schema,
+  15 semantic-layer, 9 retrieval, 4 query-rewriting, 5 reranking.
 - No retrieval evaluation numbers (hit rate/MRR) yet — that requires the
   golden question set, not built this session. No LLM evaluation numbers
   yet in the Section 7.3 sense (model x prompt comparison) — the only LLM
@@ -109,17 +126,17 @@ Day 4 (query rewriting) once Days 1-3 finished with time still available.
 
 ### What's next
 
-Week 1, Day 5 onward, in order:
-1. **Day 5** — cross-encoder reranking over retrieved chunks (rubric
-   add-on; `sentence-transformers` is already a dependency, so this is a
-   `CrossEncoder` addition to `src/retrieval/reranker.py`, not a new
-   library).
-2. **Days 6-7** — agent loop (`search_schema`, `run_sql`,
-   `validate_result` tools) and `src/agent/guardrails.py` (read-only
-   connection, SELECT-only whitelist, row limits, timeout) — must be
-   tested, not just implemented, per the non-negotiable rules in
-   `CLAUDE.md`.
+Week 1, Days 6-7:
+- Agent loop (`search_schema`, `run_sql`, `validate_result` tools) and
+  `src/agent/guardrails.py` (read-only connection, SELECT-only whitelist,
+  row limits, timeout) — must be tested, not just implemented, per the
+  non-negotiable rules in `CLAUDE.md`. `search_schema` should compose the
+  Day 3-5 pieces built this session: rewrite -> hybrid_search -> rerank.
+- This closes out Week 1 entirely (all three "best practice" retrieval
+  rubric items — hybrid search, query rewriting, reranking — are now
+  implemented; Week 2 is where they get formally evaluated against the
+  golden question set).
 
-Nothing from Days 1-4 is left unfinished. No paid API calls made this
+Nothing from Days 1-5 is left unfinished. No paid API calls made this
 session (cost discipline honoured — only local DuckDB, a local
 open-weights embedding model, and a local Ollama model were used).
