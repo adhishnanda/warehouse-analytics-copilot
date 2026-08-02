@@ -64,8 +64,11 @@ def test_rewrite_does_not_fabricate_an_answer():
     # rewrite can reasonably restate the metric's own definition ("two or
     # more orders", matching metrics.yml's repeat_customer_rate wording)
     # without that being a fabricated answer. A stated percentage, or a
-    # reply that isn't phrased as a question at all, are the actual signals
-    # of fabrication.
+    # reply with no question mark anywhere (not answered as a question at
+    # all), are the actual signals of fabrication. Checking "contains ?"
+    # rather than "ends with ?" tolerates a trailing clarifying note
+    # (e.g. "...by region? (Note: assuming X)"), which is a legitimate
+    # rewrite, not a fabricated answer.
     result = rewrite_query("what is our repeat customer rate")
     assert "%" not in result
-    assert result.strip().endswith("?")
+    assert "?" in result

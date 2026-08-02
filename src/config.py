@@ -13,7 +13,11 @@ TPCH_SCALE_FACTOR = float(os.environ.get("TPCH_SCALE_FACTOR", "0.1"))
 
 SEMANTIC_LAYER_DIR = REPO_ROOT / "semantic_layer"
 
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3")
-EVAL_MODEL_API_KEY = os.environ.get("EVAL_MODEL_API_KEY", "")
+
+# Week 2 LLM evaluation (Section 7.3): Groq free tier + one small paid model.
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
