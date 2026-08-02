@@ -176,47 +176,105 @@ No scope cuts.
   LLM evaluation and Tier-3 ablation are designed to measure formally,
   rather than anecdotally as here.
 
+**Days 8-9 — golden question set**
+- `evaluation/golden_questions.jsonl`: 50 hand-written question/SQL pairs,
+  20 Tier-1 (single-table aggregation), 20 Tier-2 (joins + time filters,
+  including a self-join of `dim_date` for a ship-delay question and a
+  "most recent quarter" question requiring a subquery), 10 Tier-3
+  (business-phrased questions that only map to a defined metric via
+  `metrics.yml`, e.g. "How much money have we brought in altogether?" for
+  `total_revenue`). Each record also carries `relevant_doc_ids` (the
+  semantic layer chunks that should be retrieved) for the retrieval
+  evaluation.
+- Before writing the questions, verified TPC-H's `dbgen` is fully
+  deterministic at a fixed scale factor: reseeded the warehouse twice
+  independently and compared row counts and aggregates (`SUM(net_revenue)`,
+  `AVG(discount)`, `MAX(order_key)`) — identical both times. This meant
+  real reference results could be baked into the golden set rather than
+  computed fresh at evaluation time.
+- Every one of the 50 gold SQL statements was executed against the real
+  warehouse and its actual result recorded as `reference_result`; none
+  were hand-guessed. `tests/test_golden_questions.py` re-executes every
+  one on every test run and asserts the live result still matches exactly
+  (Decimal/date-normalised) — this is what will catch it if the warehouse
+  or schema ever drifts from what the golden set assumes.
+
+**Day 10 — retrieval evaluation**
+- `evaluation/run_retrieval_eval.py`: keyword vs vector vs hybrid vs
+  hybrid+rerank, hit rate and MRR @ k=5 against the golden set's
+  `relevant_doc_ids`, evaluated on raw question text (not the query
+  rewrite, to keep the four-way comparison uncontaminated by a separate
+  pipeline stage).
+- First run produced a genuinely surprising, non-fabricated result:
+  **keyword-only won** (hit rate 1.000, MRR 0.805), with hybrid+rerank
+  scoring *lowest* (MRR 0.734). Flagged this to you rather than picking a
+  convenient default. Diagnosis (not guesswork — checked actual retrieved
+  rankings and raw cross-encoder scores) found a specific, repeatable
+  cause: the reranker promoted `metric:average_order_value` above the
+  correct chunk on Tier-1 counting questions ("how many orders do we
+  have"), because the metric chunks were short and formulaic enough that
+  the cross-encoder had too little signal to distinguish COUNT-type from
+  AVERAGE-type intent. Tested whether blending the rerank score with the
+  original hybrid score at several weights would fix it — it didn't (MRR
+  declined monotonically from 0.792 at weight 0 to 0.734 at weight 1;
+  hybrid's original ranking was already correct, so trusting the reranker
+  more only hurt).
+- Fix: added an `answers_questions_like` field (short, generic example
+  phrasings) to every metric in `metrics.yml`, rendered into the indexed
+  chunk text. Verified the mechanism in isolation first — the raw
+  cross-encoder score for the correct chunk moved from -2.958 (losing) to
+  +4.593 (clearly winning) — before re-running the full evaluation.
+- Re-measured on all 50 questions: **Hybrid + rerank now wins** (hit rate
+  1.000, MRR 0.758), but with a genuinely more informative story than
+  "we tuned it until it won" — the same content change measurably
+  *degraded* keyword-only search (hit rate 1.000 -> 0.980, MRR 0.805 ->
+  0.697, from BM25 term dilution), while hybrid and hybrid+rerank stayed
+  robust. That's a real, mechanistic argument for hybrid being the more
+  robust production choice, not an assumed one. Full numbers, the before/
+  after story, and an explicit caveat (the golden questions and the
+  enrichment phrasings were authored by the same person in the same
+  session, so the measured gain may be somewhat optimistic vs a fully
+  blind evaluation) are all in `evaluation/results/retrieval_eval.md` —
+  written to be read on its own, not just this log.
+- Production `search_schema` (built Day 6-7) already composed
+  rewrite -> hybrid_search -> rerank by default, so this measurement
+  confirmed the existing default rather than requiring a code change.
+
 ### Measured (real numbers from this session)
 
 - `fact_orders`: 600,572 rows; `dim_customer`: 15,000; `dim_product`:
   20,000; `dim_date`: 2,553; `dim_region`: 25; `dim_supplier`: 1,000
   (TPC-H scale factor 0.1).
-- Test suite: **110/110 passing** (`uv run pytest`) — 21 warehouse-schema,
-  15 semantic-layer, 9 retrieval, 4 query-rewriting, 5 reranking, 6
-  duckdb-client, 27 guardrails, 10 agent-tools, 11 agent-loop, 2
-  llm-client.
+- Test suite: **181/181 passing** (`uv run pytest`).
 - Three real (uncherry-picked) end-to-end agent runs against local
-  `llama3`: 2/3 succeeded with correct answers (order count 150,000;
-  repeat customer rate 0.6665); 1/3 failed cleanly after exhausting
-  retries on a join-heavy question, with the failure mode (hallucinated
-  column names) captured accurately by the guardrails rather than
-  silently producing a wrong number. This is anecdotal, not a measured
-  accuracy rate — Week 2, Day 11 produces the real number.
-- No retrieval evaluation numbers (hit rate/MRR) yet — needs the golden
-  question set. No formal LLM evaluation numbers yet (Section 7.3: model
-  x prompt comparison) — only local Ollama calls made this session, no
-  paid model, consistent with cost discipline.
+  `llama3` (from Days 6-7): 2/3 succeeded with correct answers (order
+  count 150,000; repeat customer rate 0.6665); 1/3 failed cleanly after
+  exhausting retries on a join-heavy question. Anecdotal, not a measured
+  accuracy rate — Day 11 produces the real number.
+- Retrieval evaluation (all 50 golden questions, k=5): Keyword only
+  0.980 hit rate / 0.697 MRR; Vector only 0.960 / 0.751; Hybrid 1.000 /
+  0.741; **Hybrid + rerank 1.000 / 0.758 (winner, used in production)**.
+  Full by-tier breakdown and methodology in
+  `evaluation/results/retrieval_eval.md`.
+- No formal LLM evaluation numbers yet (Section 7.3: model x prompt
+  comparison) — that's Day 11, not yet run.
 
 ### What's next
 
-Week 1 is complete — repo, warehouse, semantic layer, hybrid retrieval,
-query rewriting, reranking, agent loop, and tested guardrails are all in
-place. Week 2, in order (see `PROJECT_PLAN.md` Section 8):
-1. **Days 8-9** — write the 50 golden question-SQL pairs across the three
-   difficulty tiers. This defines what "correct" means before any
-   evaluation code is written against it, and should draw on the real
-   failure mode observed above (join-heavy, multi-table questions are
-   where this system is currently weakest).
-2. **Day 10** — retrieval evaluation: keyword vs vector vs hybrid vs
-   hybrid+rerank, hit rate + MRR, stated winner.
-3. **Day 11** — LLM evaluation: 2 models x 2 prompts, execution accuracy,
-   stated winner. This is also where a paid model is first considered
-   for the final reproducible runs — flag before making any paid call,
-   per `CLAUDE.md` rule 5.
-4. **Day 12** — measure self-correction lift (retry loop on vs off).
-5. **Days 13-14** — Tier-3 retrieval ablation (the headline result) and
-   error analysis write-up.
+Week 1 and Week 2 Days 8-10 are complete. Next, in order (see
+`PROJECT_PLAN.md` Section 8):
+1. **Day 11** — LLM evaluation: 2 models x 2 prompts, execution accuracy
+   against the golden set, stated winner. This is where a paid model is
+   first considered for the final reproducible runs — **flag before
+   making any paid API call**, per `CLAUDE.md` rule 5. Needs a decision
+   with you on which paid model (if any) and API key access before this
+   can run.
+2. **Day 12** — measure self-correction lift (retry loop on vs off) using
+   the golden set and the agent loop built Days 6-7.
+3. **Days 13-14** — Tier-3 retrieval ablation (the headline result: run
+   Tier-3 questions with semantic layer retrieval disabled vs enabled)
+   and error analysis write-up.
 
-Nothing from Days 1-7 is left unfinished. No paid API calls made this
+Nothing from Days 1-10 is left unfinished. No paid API calls made this
 session (cost discipline honoured — only local DuckDB, a local
 open-weights embedding model, and a local Ollama model were used).
