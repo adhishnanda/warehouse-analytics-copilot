@@ -1,0 +1,42 @@
+table: dim_product
+description: >
+  One row per product. Products are ordered at the line-item level in
+  fact_orders.
+grain: One row per product_key
+columns:
+  product_key:
+    type: BIGINT
+    description: Primary key. Unique identifier for a product.
+  product_name:
+    type: VARCHAR
+    description: Product name.
+  manufacturer:
+    type: VARCHAR
+    description: Manufacturer of the product, e.g. "Manufacturer#1".
+  brand:
+    type: VARCHAR
+    description: Brand of the product, e.g. "Brand#13".
+  product_type:
+    type: VARCHAR
+    description: >
+      Free-text product type/category, e.g. "SMALL PLATED COPPER". Useful
+      for category-level breakdowns, but has no fixed taxonomy — match with
+      LIKE/ILIKE rather than exact equality when a user names a category loosely.
+  size:
+    type: INTEGER
+    description: Product size, on an arbitrary numeric scale.
+  container:
+    type: VARCHAR
+    description: Packaging/container type, e.g. "SM CASE", "LG BOX".
+  retail_price:
+    type: DECIMAL
+    description: >
+      List/catalogue retail price. Not the same as the price actually
+      charged on an order line — see fact_orders.extended_price for that.
+joins:
+  - referenced_by: fact_orders.product_key
+caveats:
+  - >
+    retail_price is a catalogue price, not a transaction price — never use
+    it in place of fact_orders.extended_price or net_revenue when answering
+    revenue questions.

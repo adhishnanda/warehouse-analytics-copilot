@@ -1,0 +1,37 @@
+table: dim_customer
+description: >
+  One row per customer. Customers place orders, captured at the header level
+  in the order columns of fact_orders.
+grain: One row per customer_key
+columns:
+  customer_key:
+    type: BIGINT
+    description: Primary key. Unique identifier for a customer.
+  customer_name:
+    type: VARCHAR
+    description: Customer's registered name.
+  address:
+    type: VARCHAR
+    description: Customer's postal address.
+  phone:
+    type: VARCHAR
+    description: Customer's phone number.
+  account_balance:
+    type: DECIMAL
+    description: Customer's current account balance, in the warehouse's base currency.
+  market_segment:
+    type: VARCHAR
+    description: >
+      Market segment the customer belongs to, e.g. "AUTOMOBILE", "BUILDING",
+      "MACHINERY". Useful for segment-level revenue breakdowns.
+  nation_key:
+    type: BIGINT
+    description: Foreign key to dim_region.nation_key — the customer's home nation.
+joins:
+  - column: nation_key
+    references: dim_region.nation_key
+  - referenced_by: fact_orders.customer_key
+caveats:
+  - >
+    Region and continent for a customer are reached via nation_key ->
+    dim_region, not stored directly on this table.

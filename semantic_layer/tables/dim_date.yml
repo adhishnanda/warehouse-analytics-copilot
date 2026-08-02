@@ -1,0 +1,49 @@
+table: dim_date
+description: >
+  Standard date dimension, one row per calendar day, spanning the full
+  range of order and shipment dates present in fact_orders.
+grain: One row per date_key
+columns:
+  date_key:
+    type: INTEGER
+    description: >
+      Primary key, in YYYYMMDD integer form, e.g. 19980115 for 15 January 1998.
+      This is the form used to join from fact_orders.order_date_key and
+      fact_orders.ship_date_key.
+  full_date:
+    type: DATE
+    description: The calendar date, as a native DATE value.
+  year:
+    type: INTEGER
+    description: Calendar year, e.g. 1998.
+  quarter:
+    type: INTEGER
+    description: Calendar quarter, 1-4.
+  month:
+    type: INTEGER
+    description: Calendar month number, 1-12.
+  month_name:
+    type: VARCHAR
+    description: Full month name, e.g. "January".
+  day:
+    type: INTEGER
+    description: Day of month, 1-31.
+  day_of_week:
+    type: INTEGER
+    description: Day of week, 0 (Sunday) to 6 (Saturday).
+  day_name:
+    type: VARCHAR
+    description: Full weekday name, e.g. "Monday".
+  is_weekend:
+    type: BOOLEAN
+    description: True for Saturday/Sunday.
+joins:
+  - referenced_by: fact_orders.order_date_key
+  - referenced_by: fact_orders.ship_date_key
+caveats:
+  - >
+    fact_orders has two separate date foreign keys (order_date_key,
+    ship_date_key) that both join to this same table — always join through
+    the column matching the intended business date (when the order was
+    placed vs when the line item shipped), and alias dim_date separately
+    per join if a question needs both.

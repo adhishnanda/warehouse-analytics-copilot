@@ -1,0 +1,53 @@
+# Business metric definitions.
+#
+# Each metric is named, documented in prose, and backed by SQL against the
+# star schema in data/warehouse.duckdb. The agent must use these definitions
+# rather than inventing its own formula when a question names one of these
+# metrics or an obvious synonym of one.
+
+total_revenue:
+  description: >
+    Total net revenue across order lines, after line-level discounts and
+    before tax. The standard top-line revenue figure for this warehouse.
+  sql: |
+    SELECT SUM(net_revenue) AS total_revenue
+    FROM fact_orders
+
+order_count:
+  description: >
+    Number of distinct orders (not order lines — an order can have
+    multiple lines).
+  sql: |
+    SELECT COUNT(DISTINCT order_key) AS order_count
+    FROM fact_orders
+
+average_order_value:
+  description: >
+    Total net revenue divided by the number of distinct orders. Answers
+    "how much does a typical order bring in", not "how much does a typical
+    order line bring in".
+  sql: |
+    SELECT SUM(net_revenue) * 1.0 / COUNT(DISTINCT order_key) AS average_order_value
+    FROM fact_orders
+
+repeat_customer_rate:
+  description: >
+    Share of customers who have placed 2 or more distinct orders, out of
+    all customers who have placed at least 1 order.
+  sql: |
+    WITH customer_order_counts AS (
+        SELECT customer_key, COUNT(DISTINCT order_key) AS order_count
+        FROM fact_orders
+        GROUP BY customer_key
+    )
+    SELECT COUNT(DISTINCT CASE WHEN order_count >= 2 THEN customer_key END)
+           * 1.0 / COUNT(DISTINCT customer_key) AS repeat_customer_rate
+    FROM customer_order_counts
+
+average_discount_rate:
+  description: >
+    Average discount rate applied across order lines, as a fraction (e.g.
+    0.05 = 5%). Line-level average, not weighted by line value.
+  sql: |
+    SELECT AVG(discount) AS average_discount_rate
+    FROM fact_orders

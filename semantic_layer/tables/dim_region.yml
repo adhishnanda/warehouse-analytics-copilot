@@ -1,0 +1,26 @@
+table: dim_region
+description: >
+  Nation and region reference dimension. Grain is one row per nation; region
+  is included as an attribute so nation-level and region-level analysis both
+  work from the same table without an extra join.
+grain: One row per nation_key
+columns:
+  nation_key:
+    type: BIGINT
+    description: Primary key. Unique identifier for a nation.
+  nation_name:
+    type: VARCHAR
+    description: Nation name, e.g. "GERMANY", "UNITED STATES".
+  region_name:
+    type: VARCHAR
+    description: >
+      Region the nation belongs to, e.g. "EUROPE", "ASIA". Multiple nations
+      share the same region.
+joins:
+  - referenced_by: dim_customer.nation_key
+  - referenced_by: dim_supplier.nation_key
+caveats:
+  - >
+    There is no separate region table — region is denormalised onto this
+    table because region alone (5 rows) is too coarse to be useful as an
+    independent join target for this schema's questions.

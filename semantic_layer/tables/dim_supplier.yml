@@ -1,0 +1,34 @@
+table: dim_supplier
+description: >
+  One row per supplier. Suppliers fulfil individual order lines, captured
+  at the line-item level in fact_orders (not at the order header level,
+  since a single order can be fulfilled by multiple suppliers across its lines).
+grain: One row per supplier_key
+columns:
+  supplier_key:
+    type: BIGINT
+    description: Primary key. Unique identifier for a supplier.
+  supplier_name:
+    type: VARCHAR
+    description: Supplier's registered name.
+  address:
+    type: VARCHAR
+    description: Supplier's postal address.
+  phone:
+    type: VARCHAR
+    description: Supplier's phone number.
+  account_balance:
+    type: DECIMAL
+    description: Supplier's current account balance, in the warehouse's base currency.
+  nation_key:
+    type: BIGINT
+    description: Foreign key to dim_region.nation_key — the supplier's home nation.
+joins:
+  - column: nation_key
+    references: dim_region.nation_key
+  - referenced_by: fact_orders.supplier_key
+caveats:
+  - >
+    A supplier's region/nation reflects where the supplier is based, not
+    where the customer or the order is based — these can differ on the
+    same order line.
