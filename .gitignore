@@ -15,8 +15,10 @@ data/telemetry/
 # Environment
 .env
 
-# Local development notes - not part of the public deliverable
+# Local development notes and tooling config - not part of the public
+# deliverable
 CLAUDE.md
+.claude/
 
 # OS
 .DS_Store
