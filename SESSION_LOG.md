@@ -582,3 +582,110 @@ series were made this session (OpenAI `gpt-4o-mini`: ablation ~20 calls
 across 2 runs after the timeout fix, error-analysis rerun 7 questions
 up to 14 calls — both flagged before use per `CLAUDE.md` rule 5) — no
 other paid or metered services were used.
+
+## 2026-08-03 — Session 3: Days 15-16
+
+**Scope planned:** Days 15-16 (Streamlit UI: answer, SQL, chart, thumbs
+up/down feedback). Section 6 of `PROJECT_PLAN.md` frames the interface
+as FastAPI backend + Streamlit frontend, and Section 9's repo structure
+already reserves `src/app/api.py` and `src/app/ui.py` for this, so both
+were built together rather than treating the API as a separate task.
+
+**Scope built:** Days 15-16, complete, tested, and verified live in a
+browser (not just unit-tested). No scope cuts.
+
+### What was built
+
+- Added `fastapi`, `uvicorn[standard]`, `streamlit`, `httpx`, `pandas`
+  to `pyproject.toml` (via `uv add`); dropped `plotly` after loading the
+  Streamlit skill's guidance, which prefers Vega-based native charts
+  (`st.bar_chart`/`st.line_chart`, via the already-bundled `altair`)
+  over Plotly.
+- `src/telemetry/logger.py`: `log_trace` / `log_feedback` append JSON
+  lines to `data/telemetry/traces.jsonl` (gitignored) — the raw capture
+  point every `/ask` and `/feedback` call goes through. Deliberately a
+  plain append-only file, not a DB write, so the live request path
+  never depends on the warehouse connection; Day 17's dlt pipeline is
+  what turns this into queryable tables.
+- `src/app/api.py`: FastAPI backend wrapping `answer_question` (the
+  production agent loop) as `POST /ask` and `POST /feedback`, plus
+  `GET /health`. Chat backend selectable via `AGENT_CHAT_BACKEND`
+  (`.env`), defaulting to free local Ollama rather than the Day 11
+  production winner (`gpt-4o-mini`) — an explicit choice so that
+  running, demoing, or testing the app never spends money by accident;
+  `AGENT_CHAT_BACKEND=openai` opts into the paid model. Per-request
+  usage is captured via a fresh closure per call (not a shared
+  accumulator), so concurrent requests can't mix each other's token
+  counts.
+- `src/app/chart.py`: pure `pick_chart_kind(columns, rows)` heuristic
+  (no Streamlit/API dependency, so it's unit-testable on its own) —
+  single value -> stat tile (`metric`), 1 row with up to 4 columns ->
+  KPI row, 2 columns with a numeric second column -> bar chart (or line
+  chart if the first column looks like a date, by name or by parsing),
+  anything else -> table. Follows the dataviz skill's "is it even a
+  chart?" form heuristic rather than forcing every result into a chart.
+- `src/app/ui.py`: chat-style Streamlit frontend (`st.chat_message` /
+  `st.chat_input`, per the Streamlit skill's chat-ui reference) calling
+  the FastAPI backend over `httpx`, not importing the agent loop
+  directly, so interface and agent stay independently deployable.
+  Renders the answer per `pick_chart_kind`, the SQL in an expander,
+  a model/attempt-count caption, and thumbs up/down buttons
+  (`:material/thumb_up:`/`:material/thumb_down:` icons, sentence-cased
+  labels, per the skill's style rules) that call `/feedback` and
+  disable once voted.
+- Two real bugs found only by actually running the app (not caught by
+  unit tests), both fixed:
+  1. `ModuleNotFoundError: No module named 'src'` on first Streamlit
+     load — Streamlit executes the script file directly, unlike
+     `uvicorn src.app.api:app`, so the repo root was never added to
+     `sys.path`. Fixed with the same `sys.path.insert` pattern already
+     used in every `evaluation/*.py` script.
+  2. `tests/test_api.py`'s early runs were silently writing real trace/
+     feedback events into the actual `data/telemetry/traces.jsonl`
+     instead of an isolated test file — `log_trace`'s `path` parameter
+     defaults to `TRACE_LOG_PATH` bound at function-definition time, so
+     monkeypatching `config.TRACE_LOG_PATH` after import had no effect.
+     Fixed by having `api.py` reference `TRACE_LOG_PATH` as a
+     module-level name resolved at call time (same pattern as
+     `loop.py`'s `chat_fn` resolution) and adding an autouse
+     `tmp_path`-backed fixture in the test file; deleted the polluted
+     log entries this had already written.
+- `tests/test_telemetry.py` (5 tests), `tests/test_api.py` (7 tests,
+  module-scoped `TestClient` so the Retriever/Reranker model load only
+  happens once per file, not once per test), `tests/test_chart.py`
+  (9 tests). Full suite: 235/235 passing.
+- Live browser verification (`uv run uvicorn src.app.api:app` +
+  `uv run streamlit run src/app/ui.py`, driven via Chrome automation):
+  suggestion pills -> question submission -> spinner -> answer all
+  worked; a genuine `llama3` failure (hallucinated `region_key` column
+  on a join question — an honest reproduction of the Days 6-7 and Day
+  11 findings about local-model join accuracy, not a UI bug) rendered
+  correctly with the error message and an "Attempted SQL" expander;
+  a single-value question rendered as a stat tile (`Total order lines:
+  600,572`, matching the real row count exactly); a category-breakdown
+  question rendered as a bar chart with correct axis labels
+  (`ship_mode` x `order_line_count`); thumbs up and thumbs down both
+  logged correctly with the matching `query_id` linking the trace and
+  feedback events.
+
+### Measured (real numbers from this session)
+
+- Test suite: **235/235 passing** (`uv run pytest`).
+- No paid API calls this session — `AGENT_CHAT_BACKEND` defaults to
+  local Ollama, and all browser verification ran against it.
+
+### What's next
+
+Days 1-16 are complete. Next, in order (`PROJECT_PLAN.md` Section 8):
+1. **Day 17** — dlt pipeline: read `data/telemetry/traces.jsonl`
+   (already being written by `src/app/api.py`) into DuckDB telemetry
+   tables.
+2. **Day 18** — monitoring dashboard with 6 named charts.
+3. **Day 19** — Kestra nightly refresh flow.
+4. **Day 20** — consolidate into a single `docker-compose.yml` (app +
+   DB + Kestra), pin all dependency versions — this will need `api` and
+   `ui` services added alongside the existing `seed` service.
+5. **Day 21** — full README, run tests, submit.
+
+Nothing from Days 15-16 is left unfinished. No paid or metered services
+were used this session.
