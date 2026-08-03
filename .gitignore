@@ -21,6 +21,10 @@ docker-compose.override.yml
 CLAUDE.md
 .claude/
 
+# Internal planning and session notes - not part of the public deliverable
+PROJECT_PLAN.md
+SESSION_LOG.md
+
 # OS
 .DS_Store
 Thumbs.db

@@ -92,9 +92,9 @@ want to discard the named volumes and force a full reseed next time).
 ### Using the paid backend (optional)
 
 The committed `docker-compose.yml` deliberately never interpolates
-`OPENAI_API_KEY` into a file (see the incident note in `SESSION_LOG.md`,
-Day 20: `docker compose config` will print any interpolated secret in
-plaintext). Two ways to opt in to `gpt-4o-mini` for a session:
+`OPENAI_API_KEY` into a file, since `docker compose config` (without
+`--quiet`) prints any interpolated secret in plaintext. Two ways to opt
+in to `gpt-4o-mini` for a session:
 
 ```bash
 # One-off, for a single command:

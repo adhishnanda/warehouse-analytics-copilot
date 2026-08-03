@@ -322,9 +322,9 @@ orchestration: [`docs/architecture.md`](docs/architecture.md).
 ## Limitations
 
 - **Schema scope is deliberately small** (1 fact and 5 dimension tables).
-  This is a stated design choice, not an apology (see `PROJECT_PLAN.md`
-  Section 4), but it means these accuracy numbers do not claim to
-  generalise to a sprawling, real-world warehouse.
+  This is a stated design choice, not an apology, but it means these
+  accuracy numbers do not claim to generalise to a sprawling, real-world
+  warehouse.
 - **`validate_result` is a plausibility heuristic, not a correctness
   oracle.** It catches empty/NULL results and out-of-range rate values,
   but not a wrong-but-plausible dimension choice, a silently-empty false

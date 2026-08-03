@@ -2,8 +2,7 @@
 
 This document explains the design decisions behind each major component,
 not just what the code does; the code itself is the source of truth for
-that. See `PROJECT_PLAN.md` for the full rubric-driven rationale behind
-the project as a whole.
+that.
 
 ## Why DuckDB
 
