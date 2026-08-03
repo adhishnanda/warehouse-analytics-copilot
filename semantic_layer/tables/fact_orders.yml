@@ -84,6 +84,13 @@ caveats:
     answers "how many order lines", not "how many orders" — use
     COUNT(DISTINCT order_key) for order counts.
   - >
+    order_status and line_status are different columns with overlapping
+    "O"/"F" values, and can disagree for a partially-filled order. By
+    this project's convention, "open"/"filled" questions about order
+    lines (e.g. "how many order lines are currently open") mean the
+    order's overall status (order_status), not the per-line fulfilment
+    flag (line_status) — the two names are easy to conflate.
+  - >
     net_revenue already applies the line discount; do not multiply by
     (1 - discount) again.
   - >
