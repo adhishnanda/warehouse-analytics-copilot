@@ -355,3 +355,105 @@ prompt/completion split. Either way, this is nowhere near the plan's
 dropped from the final evaluation after its free-tier quota was
 exhausted (see Day 11 above) — no other paid or metered services were
 used.
+
+## 2026-08-03 — Session 2
+
+**Scope planned:** Day 12 (self-correction lift: retry loop on vs off,
+measured against the golden set).
+
+**Scope built:** Day 12, complete and tested.
+
+### What was built
+
+**Day 12 — self-correction lift**
+- `src/agent/loop.py`: `generate_sql` and `answer_question` gained an
+  optional `chat_fn` parameter (resolved to the module-level Ollama
+  `chat` at call time if omitted, so existing `monkeypatch.setattr(loop,
+  "chat", ...)` tests keep working unchanged). `generate_sql` now also
+  catches `ApiUnavailableError` alongside `OllamaUnavailableError`, since
+  a non-Ollama `chat_fn` raises the former. This lets an evaluation
+  script drive the exact same retry-loop logic against a hosted model
+  without duplicating retry mechanics — the loop itself, not a
+  re-implementation of it, is what gets measured.
+- `evaluation/run_self_correction_eval.py`: rather than running two
+  independent full passes (single-shot vs retry-enabled), which would
+  double the paid API calls and introduce sampling noise between the two
+  arms' own first attempts, each of the 50 golden questions is run
+  **once** through `answer_question` with `max_attempts=2` (production
+  default), using the Day 11 production winner (`gpt-4o-mini` +
+  schema-grounded context). Single-shot accuracy is read from
+  `attempts[0]`'s result; retry-enabled accuracy from the loop's final
+  result — both compared against the golden `reference_result` via the
+  same order-insensitive `results_match` used in Day 11's evaluation
+  (imported from `evaluation/run_llm_eval.py`, not duplicated). This is
+  an apples-to-apples comparison: both arms share an identical first
+  attempt.
+- Also tracked per question: whether retry was triggered at all (only
+  happens when `validate_result`'s heuristic judges attempt 1
+  implausible), and whether that retry *rescued* a wrong first attempt,
+  *regressed* a right one, or left an already-wrong answer wrong.
+  Reported explicitly because `validate_result` is a heuristic, not an
+  oracle against the golden reference — it bounds how much lift a
+  retry loop can produce by construction (a confidently wrong-but-
+  plausible-looking first answer never gets a second try), which is a
+  real, disclosed limitation rather than a tuning target.
+- `tests/test_agent_loop.py`: added a test confirming `chat_fn`
+  overrides the module-level `chat` (module `chat` is monkeypatched to
+  raise if called at all, then a fake `chat_fn` is passed in and
+  asserted to be the only thing invoked).
+- `tests/test_run_self_correction_eval.py`: 4 tests — summary math
+  (overall + per-tier accuracy from mixed outcomes), retried/rescued/
+  regressed counting, `evaluate_question`'s classification logic against
+  a monkeypatched `answer_question` fixture (a wrong first attempt that
+  the second attempt corrects is correctly marked rescued), and a check
+  that the results file was actually generated with the expected
+  sections.
+- Full suite: 207/207 passing (`uv run pytest`), no regressions from the
+  `loop.py` signature change (the pre-existing 202 tests plus this
+  session's 5 new ones).
+- Ran the real evaluation against `gpt-4o-mini` (paid call series,
+  flagged and confirmed with you before running, per `CLAUDE.md` rule 5,
+  after you separately asked to double-check the 0.880 figure's
+  consistency between `SESSION_LOG.md` and `evaluation/results/
+  llm_eval.md` first — confirmed identical, no discrepancy).
+
+### Measured (real numbers from this session)
+
+- Self-correction lift, all 50 golden questions, `gpt-4o-mini` +
+  schema-grounded: **single-shot accuracy 0.840, retry-enabled accuracy
+  0.860, delta +0.020**. By tier: Tier 1 0.950 -> 0.950 (unchanged),
+  Tier 2 0.650 -> 0.700, Tier 3 1.000 -> 1.000 (unchanged, already
+  perfect single-shot). Retry triggered on 4 of 50 questions; 1 rescued,
+  0 regressed, 3 retried-but-still-wrong. Full numbers and methodology
+  in `evaluation/results/self_correction_eval.md`.
+- Noted honestly in the results file: this run's single-shot accuracy
+  (0.840) differs slightly from Day 11's independently-measured
+  `gpt-4o-mini`/schema-grounded accuracy (0.880) on the same 50
+  questions. Checked this is not a bug — `chat_openai_compatible`
+  (`src/llm_client.py`) does not pin a temperature, so the two
+  measurements are genuinely independent samples of a non-deterministic
+  model, not a repeat of identical calls. Flagged in the report rather
+  than left unexplained.
+- Cost: 64,406 OpenAI (`gpt-4o-mini`) tokens for this evaluation, real
+  figure from API usage responses, not estimated. Comparable in size to
+  one arm of Day 11's evaluation; nowhere near the plan's cost ceiling.
+- Test suite: **207/207 passing** (`uv run pytest`).
+
+### What's next
+
+Days 1-12 are complete. Next, in order (see `PROJECT_PLAN.md` Section
+8):
+1. **Days 13-14** — Tier-3 retrieval ablation (the headline result: run
+   Tier-3 questions with semantic layer retrieval disabled vs enabled)
+   and error analysis write-up. Day 11's by-tier numbers already point
+   at the expected direction (Tier 3 improved most from schema
+   grounding: `llama3` 0.100 -> 0.700, `gpt-4o-mini` 0.400 -> 1.000), so
+   this should formalise and confirm that with a dedicated ablation
+   script and report, plus write up an honest error analysis of what's
+   still failing (e.g. Day 12's 3 questions that retried but stayed
+   wrong, and Day 11's join-heavy failure modes) rather than treating
+   the headline number alone as the whole story.
+
+Nothing from Day 12 is left unfinished. One further paid API call series
+was made this session (OpenAI `gpt-4o-mini`, ~64,406 tokens, flagged and
+confirmed before use) — no other paid or metered services were used.
