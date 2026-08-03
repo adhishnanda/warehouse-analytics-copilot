@@ -689,3 +689,87 @@ Days 1-16 are complete. Next, in order (`PROJECT_PLAN.md` Section 8):
 
 Nothing from Days 15-16 is left unfinished. No paid or metered services
 were used this session.
+
+## 2026-08-03 — Session 4: Day 17
+
+**Scope planned:** Day 17 (dlt pipeline: traces logged into DuckDB
+telemetry tables).
+
+**Scope built:** Day 17, complete and tested.
+
+### What was built
+
+- Added `dlt[duckdb]` as a dependency.
+- `src/telemetry/dlt_pipeline.py`: two dlt resources (`traces`,
+  `feedback`) reading `data/telemetry/traces.jsonl` (written by
+  `src/telemetry/logger.py` via `src/app/api.py`) and loading into a
+  **separate** `data/telemetry.duckdb` file — deliberately not the
+  warehouse file, since the FastAPI backend holds a persistent
+  read-only connection to `warehouse.duckdb` for the app's lifetime,
+  and DuckDB allows only one read-write connection to a given file at
+  a time; loading telemetry into the same file would contend with that
+  connection every time the pipeline runs. `write_disposition="merge"`
+  on `query_id` makes reruns idempotent — re-running against a JSONL
+  file that already contains previously-loaded lines does not
+  duplicate rows, so the pipeline can simply re-read the whole log
+  file each run rather than tracking an incremental read offset itself.
+- Three real bugs found and fixed by actually running the pipeline
+  (not just writing it):
+  1. `DatabaseTerminalException: Ambiguous reference to catalog or
+     schema "telemetry"` — the DuckDB catalog name (derived from the
+     `telemetry.duckdb` filename) collided with the dlt dataset name,
+     which was also `"telemetry"`. Renamed the dataset to
+     `telemetry_events`.
+  2. dlt warned it couldn't infer a type for the `error`/`sql` columns
+     when a load batch had every value `None` (e.g. a run of
+     all-succeeded traces) — fixed with explicit `columns` type hints
+     in the resource decorator so the columns always materialize
+     regardless of what a given batch contains.
+  3. A duplicate `query_id` within a *single* load batch didn't
+     resolve to "latest wins" by default — dlt kept whichever row it
+     encountered first, not the one with the latest timestamp. Fixed
+     with a `dedup_sort: "desc"` hint on the feedback resource's
+     `timestamp` column, and added a test specifically for this case
+     (two feedback events for the same query in one load) since it's
+     the kind of thing that looks correct until tested with more than
+     one conflicting row.
+- `tests/test_dlt_pipeline.py`: 6 tests, all against temp JSONL/DuckDB
+  paths (never the real files) — table creation and column flattening
+  (nested `usage` dict becomes `usage__total_tokens`), rerun-on-
+  unchanged-file produces no duplicates, rerun-after-append adds
+  exactly one row, the same-batch duplicate-feedback dedup case above,
+  and a missing-source-file run completing without error (and without
+  creating `traces`/`feedback` tables, since dlt has no data to infer
+  a schema from).
+- Ran the pipeline for real against the actual
+  `data/telemetry/traces.jsonl` (3 trace + 2 feedback events, real
+  data from Day 15-16's live browser verification) — all 3 traces and
+  both feedback votes loaded correctly into `data/telemetry.duckdb`,
+  confirmed by direct query.
+- Full suite: 241/241 passing (`uv run pytest`).
+
+### Measured (real numbers from this session)
+
+- Test suite: **241/241 passing** (`uv run pytest`).
+- Real telemetry load: 3 trace rows, 2 feedback rows, matching the
+  actual JSONL log exactly (verified by direct DuckDB query, not
+  assumed).
+- No paid API calls this session.
+
+### What's next
+
+Days 1-17 are complete. Next, in order (`PROJECT_PLAN.md` Section 8):
+1. **Day 18** — monitoring dashboard with 6 named charts (rubric
+   requires 5+), reading from `data/telemetry.duckdb`'s `traces`/
+   `feedback` tables built today: queries over time, execution accuracy
+   over time (`succeeded` proportion), cost per query (from
+   `usage__total_tokens` and known per-model pricing), latency p50/p95
+   (`latency_seconds`), feedback rate (`feedback` table joined to
+   `traces`), and top failure categories (from `error` text, informed
+   by Day 14's error analysis categories).
+2. **Day 19** — Kestra nightly refresh flow.
+3. **Day 20** — consolidate into a single `docker-compose.yml`.
+4. **Day 21** — full README, run tests, submit.
+
+Nothing from Day 17 is left unfinished. No paid or metered services
+were used this session.
