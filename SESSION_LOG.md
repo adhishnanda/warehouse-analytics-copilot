@@ -1318,5 +1318,36 @@ early") — explicitly optional, and Week 3 did not finish early, so this
 was correctly never scheduled rather than cut.
 
 Nothing from Day 21 is left unfinished. Per your instruction, no `git
-push` was run this session — commits are local only, and you are
+push` was run this session; commits are local only, and you are
 creating the GitHub repo and pushing everything yourself.
+
+## 2026-08-04 — Session 10: README polish
+
+**Scope:** you asked for the screenshots to be removed from the README
+(the crops from live browser automation weren't aligned and didn't look
+good) and for every em dash and en dash to be removed from the text,
+since `CLAUDE.md`'s rule 6 ("UK English. No em dashes or en dashes
+except in date ranges") had been violated throughout the Day 21 writing.
+
+### What was done
+
+- Removed all four screenshot embeds from `README.md` and the two from
+  `docs/usage.md`, and deleted the underlying image files from
+  `docs/screenshots/` (they were only ever referenced from those two
+  places).
+- Rewrote every dash-as-punctuation instance across `README.md`,
+  `docs/setup.md`, `docs/usage.md`, and `docs/architecture.md` (all four
+  written this same session, so all four had the same violation) into
+  commas, colons, semicolons, or separate sentences, whichever read best
+  in context. Compound-word hyphens (e.g. "text-to-SQL", "single-shot")
+  are unaffected; the rule is about em/en dashes specifically, not
+  hyphens.
+- Left the dash usage in `SESSION_LOG.md`'s own prior entries,
+  `PROJECT_PLAN.md`, and `evaluation/results/*.md` untouched: those are
+  either historical log entries or already-committed evaluation reports
+  from earlier sessions, not part of what you asked to be reworked.
+
+### What's next
+
+Nothing outstanding from this request. Day 21 (README plus the three
+docs files) is otherwise unchanged in substance, only in presentation.
