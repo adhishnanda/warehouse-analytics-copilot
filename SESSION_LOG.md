@@ -926,6 +926,135 @@ Nothing from today was left silently incomplete — the one open item is
 named explicitly above rather than folded into a claimed "done". No
 paid or metered services were used this session.
 
+## 2026-08-03 — Session 7: Day 20
+
+**Scope planned:** Day 20 (consolidate into a single `docker-compose.yml`
+— app + DB + Kestra — pin all dependency versions), plus closing Day
+19's one open item (volume persistence under a real Kestra deployment).
+
+**Scope built:** Day 20 complete. The full six-service stack was
+brought up for real, end to end, including a live trigger of the
+Kestra flow that proved data now persists correctly to the volume
+api/ui/monitoring read from — closing Day 19's open item with evidence,
+not just a config change.
+
+### What was built
+
+- `docker-compose.yml`: six services sharing one app image
+  (`warehouse-analytics-copilot:latest`, built once and referenced by
+  an explicit `image:` tag on all four app services so Kestra's flow
+  can name it reliably) and one named volume (`warehouse_data` at
+  `/app/data`) — `seed` (warehouse + index build), `api` (FastAPI,
+  depends on `seed` completing), `ui` (Streamlit, depends on `api`),
+  `monitoring` (the Day 18 dashboard), `kestra-db` (Postgres, Kestra's
+  metadata store, health-checked before `kestra` starts), `kestra`
+  (`server standalone` with the Day 19 flow's config inlined via
+  `KESTRA_CONFIGURATION`).
+- Pinned versions throughout, closing the gap Day 19 left open:
+  `kestra/kestra:1.3.30` (was `:latest`), `postgres:15.18` (was `:15`,
+  matched to the version actually running). `python:3.13.7-slim-
+  bookworm` and `uv==0.11.20` in the Dockerfile were already exact.
+  `uv.lock` (committed, `uv sync --frozen` in the Dockerfile) was
+  already the source of truth for every Python dependency's exact
+  version — confirmed rather than reworked.
+- `tests/test_docker_compose.py`: 14 tests, mostly pure YAML parsing
+  (fast, no Docker needed) — expected services present, all four app
+  services share the same image tag and the same data volume, Kestra's
+  inlined config uses the Postgres repository/queue and has
+  `volume-enabled: true`, the socket mount and `user: root` are both
+  present, `kestra-db` is health-checked before `kestra` starts, and a
+  regression check that `OPENAI_API_KEY` is never written as
+  `${OPENAI_API_KEY}` in the compose file (see the incident below).
+  One live test (skipped if Docker isn't available) runs `docker
+  compose config --quiet` to confirm the file is actually valid, not
+  just plausible-looking YAML.
+- Full suite: 277/277 passing (`uv run pytest`).
+
+### A real incident, disclosed in full: a live API key got printed
+
+Running `docker compose config` (without `--quiet`) to sanity-check the
+file's resolved output printed your real OpenAI API key in plaintext —
+compose auto-loads `.env` for `${VAR}` interpolation and dumps fully-
+resolved values, secrets included. Flagged this to you immediately
+rather than continuing past it. You chose to remove the interpolation
+from `docker-compose.yml` rather than rotate the key; done — the `api`
+service's environment block no longer references `OPENAI_API_KEY` at
+all (a comment explains passing it at runtime instead, via `docker
+compose run -e OPENAI_API_KEY=... api ...`, for anyone who wants the
+paid backend). Added a regression test for this specifically
+(`test_openai_api_key_is_never_interpolated_in_compose`) and will use
+`--quiet` for any future compose validation in this project.
+
+### Live verification: the full stack, actually brought up
+
+- `seed`: real TPC-H generation + index build inside the compose
+  network, same row counts as every previous day
+  (`fact_orders: 600,572`, etc.), written to the named volume.
+- `api`, `ui`, `monitoring`: all three responded `200` on their
+  respective ports. Found and fixed a real bug getting `api` to
+  actually answer a question: `docker compose config` showed
+  `OLLAMA_BASE_URL` resolving to `http://localhost:11434` (the host-
+  side value from `.env`) instead of the `http://host.docker.internal
+  :11434` default written in the compose file — compose's automatic
+  `.env` loading for variable interpolation silently wins over a
+  `${VAR:-default}` fallback whenever `.env` already sets that name,
+  even for a value that only makes sense on the host. Fixed by not
+  interpolating this one at all — hardcoded the container-correct
+  value directly, with a comment explaining why. After the fix, a real
+  question through the containerized API answered correctly (150,000
+  total orders, matching the golden reference).
+- `kestra` + `kestra-db`: `server standalone` came up against the
+  Postgres backend (Flyway ran real schema migrations against
+  `jdbc:postgresql://kestra-db:5432/kestra`, visible in the logs) —
+  and, unlike Day 19's `server local`, `KESTRA_CONFIGURATION` was
+  genuinely applied this time. Confirmed empirically, not assumed:
+  imported the Day 19 flow via the CLI, triggered a real execution, and
+  it reached `SUCCESS`.
+- **Day 19's open item, closed with evidence.** Inspected the
+  `warehouse_data` named volume directly afterwards (a throwaway
+  `alpine`/`python` container mounting the same volume) and this time
+  it actually contained `warehouse.duckdb` (43MB, timestamped to the
+  execution), `indices/`, and `telemetry.duckdb` — queried them
+  directly and got `fact_orders: 600,572` and `telemetry_events.traces:
+  20` rows, both correct. Then, without restarting anything, asked the
+  already-running `api` service a fresh question and it answered
+  correctly against the Kestra-refreshed data (`600,572` order lines) —
+  proving the whole point of the shared volume, not just that the flow
+  ran.
+- Two smaller `docker cp`-related hiccups during flow re-import (a
+  Windows/Git-Bash path-mangling issue copying into a subdirectory)
+  were worked around by moving the file into place with a container-
+  internal command instead — noted here for completeness, not written
+  up at length since they were mechanical, not architectural.
+- Stack torn down cleanly (`docker compose down`) after verification;
+  named volumes (containing the now-real seed/telemetry data) were left
+  in place rather than deleted.
+
+### Measured (real numbers from this session)
+
+- Live compose stack: `fact_orders` 600,572 rows (seed, and again after
+  Kestra's flow-triggered refresh), `telemetry_events.traces` 20 rows.
+- A real question through the containerized `api`, both before and
+  after the Kestra refresh, answered correctly (150,000 total orders;
+  600,572 total order lines after refresh).
+- Test suite: **277/277 passing** (`uv run pytest`).
+- No paid API calls this session (the accidentally-printed key was
+  never used for a real request — it was only ever interpolated into
+  a config dump, not sent anywhere).
+
+### What's next
+
+Days 1-20 are complete, including the Day 19 carry-over. Only
+`PROJECT_PLAN.md` Section 8's final day remains:
+1. **Day 21** — full README (Section 10's skeleton, filled with only
+   real measured numbers from `evaluation/results/` and today's compose
+   verification), `docs/setup.md` / `docs/usage.md` / `docs/
+   architecture.md`, a final full test run, and submission.
+
+Nothing from today was left incomplete. One real incident (the printed
+API key) is disclosed above in full rather than omitted. No paid or
+metered services were used this session.
+
 ## 2026-08-03 — Session 5: Day 18
 
 **Scope planned:** Day 18 (monitoring dashboard with 6 named charts,
