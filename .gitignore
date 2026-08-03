@@ -14,6 +14,7 @@ data/telemetry/
 
 # Environment
 .env
+docker-compose.override.yml
 
 # Local development notes and tooling config - not part of the public
 # deliverable
