@@ -457,3 +457,128 @@ Days 1-12 are complete. Next, in order (see `PROJECT_PLAN.md` Section
 Nothing from Day 12 is left unfinished. One further paid API call series
 was made this session (OpenAI `gpt-4o-mini`, ~64,406 tokens, flagged and
 confirmed before use) — no other paid or metered services were used.
+
+## 2026-08-03 — Session 2 (continued): Days 13-14
+
+**Scope planned:** Days 13-14 (Tier-3 retrieval ablation — the headline
+result — and error analysis write-up).
+
+**Scope built:** Days 13-14, complete and tested.
+
+### What was built
+
+**Day 13 — Tier-3 retrieval ablation**
+- `evaluation/run_ablation.py`: the 10 Tier-3 golden questions only,
+  retrieval disabled (baseline: raw schema dump) vs enabled
+  (schema-grounded: real `search_schema` pipeline), 2 models
+  (`gpt-4o-mini` paid, `llama3` free) — reuses `run_llm_eval.py`'s
+  prompts, context builders, `run_combination`, and `summarize` rather
+  than duplicating them. Persists full per-question outcomes (SQL,
+  correctness, error, model, condition) to `ablation_outcomes.json` for
+  reuse as error-analysis evidence.
+- First run surfaced a real infrastructure problem, not a data result:
+  6 of 20 `llama3` calls failed with `OllamaUnavailableError` (30s
+  connection timeout), concentrated right after the reranker's
+  cross-encoder model was lazily loaded — CPU contention between local
+  inference and Ollama generation in the same process. Diagnosed rather
+  than reported as-is (same approach as Day 11's Groq incident): raised
+  the `llama3` timeout to 90s for this script only
+  (`src/llm_client.py`'s production default is untouched), then found a
+  second, smaller bug — `ablation_outcomes.json` was being written from
+  raw `QuestionOutcome` objects with no `model`/`condition` field, so
+  the persisted file wasn't self-describing. Fixed by tagging each
+  record with its combination before writing. Re-ran twice (90s
+  timeout still left 1 residual llama3 timeout on the first re-run;
+  the second re-run had zero).
+- Final, clean numbers: `llama3` 0.300 (disabled) -> 0.800 (enabled);
+  `gpt-4o-mini` 0.500 (disabled) -> 1.000 (enabled). Reasonably
+  consistent with Day 11's independent by-tier Tier-3 measurement
+  (0.100->0.700 and 0.400->1.000 respectively) given the known,
+  disclosed sampling variance from an unfixed API temperature.
+  Full numbers, the timeout incident, and the Day 11 corroboration
+  table are in `evaluation/results/ablation_eval.md`.
+- `tests/test_run_ablation.py`: 4 tests — Tier-3 filtering, condition
+  labels, generated report content, and outcomes-file shape.
+
+**Day 14 — error analysis**
+- `evaluation/run_error_analysis.py`: rather than a full fresh
+  50-question sweep (redundant, costly re-measurement of what Day 11
+  already covered), targeted the 7 question IDs that actually failed
+  in Day 12's self-correction run, re-running them through the full
+  production agent loop (`gpt-4o-mini`, schema-grounded, with retry)
+  with complete per-attempt logging (generated SQL, DuckDB error,
+  `validate_result` reasoning) to `error_analysis_traces.json`.
+- `evaluation/results/error_analysis.md`, built entirely from that file
+  plus `ablation_outcomes.json` — every example is a real generated
+  query, not a hypothetical:
+  - **Grain mistakes** (Category A) are the concrete mechanism behind
+    the ablation's headline result: with retrieval disabled,
+    `gpt-4o-mini` computed "average order value" as `AVG(net_revenue)`
+    over line items (not orders) on 3 of 3 sampled questions, and
+    "repeat customer rate" with `COUNT(order_key)` instead of
+    `COUNT(DISTINCT order_key)` — exactly the mistakes
+    `fact_orders.yml`'s grain caveat and `metrics.yml`'s metric
+    definitions exist to prevent. With retrieval enabled, Tier-3
+    accuracy was 1.000 and these mistakes did not recur.
+  - Other categories with real evidence: wrong dimension chosen despite
+    retrieval being enabled (grouped by `market_segment` instead of
+    region); a technically-correct-but-differently-labelled result
+    (`nation_key` vs `nation_name`) scored wrong by exact-match
+    methodology — flagged as an evaluation-methodology caveat, not only
+    a model one; a stored-value casing mismatch (`'Asia'` vs `'ASIA'`)
+    that silently produced a false zero-row answer `validate_result`
+    couldn't catch; a retry that repeated an identical wrong column
+    name even though DuckDB's own error message named the correct one
+    in its candidate-bindings list; a surrogate date key
+    (`order_date_key`) treated as a native timestamp.
+  - Found and fixed one genuine semantic-layer documentation gap along
+    the way: `fact_orders.yml` documented both `order_status` and
+    `line_status` without disambiguating which applies to "order
+    lines... open" phrasing — added a caveat stating this project's
+    convention explicitly. Warehouse and retrieval indices rebuilt
+    after the change; full suite re-run to confirm no regressions.
+  - Disclosed non-determinism explicitly: one of the 7 traced questions
+    (`t2_07`) succeeded cleanly on re-run despite failing in Day 12,
+    confirming some failures are not systematic given the unfixed API
+    temperature — the write-up's categories are the ones that were
+    actually traced to a specific, inspectable cause, not presented as
+    an exhaustive failure taxonomy.
+- `tests/test_run_error_analysis.py`: 3 tests — known-failing IDs are
+  still valid golden question IDs, and `build_trace` shapes both a
+  multi-attempt and a no-final-result response correctly.
+- Full suite: 214/214 passing (`uv run pytest`).
+
+### Measured (real numbers from this session)
+
+- Tier-3 ablation, all 10 Tier-3 questions: `llama3` 0.300 (retrieval
+  disabled) -> 0.800 (enabled); **`gpt-4o-mini` 0.500 (disabled) ->
+  1.000 (enabled)**. Full numbers in
+  `evaluation/results/ablation_eval.md`.
+- Cost: 15,251 OpenAI (`gpt-4o-mini`) tokens for the ablation, 12,411
+  for the targeted error-analysis rerun — both real figures from API
+  usage responses, comparable in size to a small fraction of Day 11's
+  runs.
+- Test suite: **214/214 passing** (`uv run pytest`).
+
+### What's next
+
+Days 1-14 are complete — all of Week 1 and Week 2's evaluation work
+(golden set, retrieval evaluation, LLM evaluation, self-correction
+lift, Tier-3 ablation, error analysis) is done, matching
+`PROJECT_PLAN.md` Section 8 exactly. Next: Week 3, in order (Section
+8):
+1. **Days 15-16** — Streamlit UI: answer, SQL, chart, thumbs up/down
+   feedback.
+2. **Day 17** — dlt pipeline: traces logged into DuckDB telemetry
+   tables.
+3. **Day 18** — monitoring dashboard with 6 named charts.
+4. **Day 19** — Kestra nightly refresh flow.
+5. **Day 20** — consolidate into a single `docker-compose.yml` (app +
+   DB + Kestra), pin all dependency versions.
+6. **Day 21** — full README, run tests, submit.
+
+Nothing from Days 13-14 is left unfinished. Two further paid API call
+series were made this session (OpenAI `gpt-4o-mini`: ablation ~20 calls
+across 2 runs after the timeout fix, error-analysis rerun 7 questions
+up to 14 calls — both flagged before use per `CLAUDE.md` rule 5) — no
+other paid or metered services were used.
