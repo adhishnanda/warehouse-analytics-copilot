@@ -127,7 +127,15 @@ def ask(request: AskRequest) -> AskResponse:
     error = None
     if not response.succeeded:
         error = (last_attempt.error or last_attempt.validation_reason) if last_attempt else "no attempts made"
-    total_usage = {"total_tokens": sum(u.get("total_tokens", 0) for u in usage_records)} if usage_records else {}
+    total_usage = (
+        {
+            "prompt_tokens": sum(u.get("prompt_tokens", 0) for u in usage_records),
+            "completion_tokens": sum(u.get("completion_tokens", 0) for u in usage_records),
+            "total_tokens": sum(u.get("total_tokens", 0) for u in usage_records),
+        }
+        if usage_records
+        else {}
+    )
 
     query_id = str(uuid.uuid4())
     log_trace(
