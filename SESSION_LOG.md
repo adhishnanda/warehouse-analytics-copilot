@@ -773,3 +773,100 @@ Days 1-17 are complete. Next, in order (`PROJECT_PLAN.md` Section 8):
 
 Nothing from Day 17 is left unfinished. No paid or metered services
 were used this session.
+
+## 2026-08-03 — Session 5: Day 18
+
+**Scope planned:** Day 18 (monitoring dashboard with 6 named charts,
+rubric requires 5+).
+
+**Scope built:** Day 18, complete, tested, and verified live in a
+browser against real telemetry data.
+
+### What was built
+
+- `src/app/api.py`: fixed a real gap ahead of building the dashboard —
+  `_build_chat_fn`'s usage capture only summed `total_tokens`, discarding
+  the `prompt_tokens`/`completion_tokens` split needed to compute
+  per-model dollar cost (OpenAI's pricing is different for input vs
+  output tokens). Both are now captured.
+- `monitoring/metrics.py`: pure, Streamlit-free data-prep functions —
+  `compute_cost_usd` (per-model $/token pricing, $0 for any model not
+  in the table, i.e. local Ollama), `compute_percentiles` (nearest-rank
+  p50/p95), and `categorize_error` (mechanical classification of a
+  trace's `error` text into guardrail rejection / query timeout /
+  implausible result / SQL execution error / LLM backend error / other,
+  using the system's own known error-message vocabulary from
+  `guardrails.py`/`tools.py`/`loop.py` — not the deeper semantic
+  categories Day 14's error analysis dug into by hand, just which layer
+  of the system produced the failure).
+- `monitoring/dashboard.py`: the 6 named charts from
+  `PROJECT_PLAN.md`'s README skeleton — queries over time, execution
+  accuracy over time, cost per query, latency (p50/p95), feedback rate,
+  and top failure categories — plus a KPI row and a raw-traces table.
+  Reads `data/telemetry.duckdb` (Day 17's dlt pipeline output), with a
+  "Refresh data" button that re-runs the pipeline and clears the
+  Streamlit cache.
+- Generated real demo telemetry volume rather than fabricating any
+  numbers: ran 17 real questions through the live FastAPI backend (12
+  via free local `llama3`, 5 via paid `gpt-4o-mini` — flagged and
+  confirmed with you first, ~$0.001 actual cost from real API usage),
+  with feedback votes on a realistic subset (up mostly on success, a
+  mix on failure). Every trace is a genuine agent execution against the
+  real warehouse; only the choice of which questions to ask and which
+  get voted on was scripted. Combined with Day 15-16's 3 organic traces
+  from live browser testing: 20 traces, 9 feedback events total.
+- Two real bugs found only by running the dashboard against this real
+  data (not caught by unit tests against synthetic fixtures), both
+  fixed with regression tests added:
+  1. `AttributeError: 'float' object has no attribute 'startswith'` in
+     `categorize_error` — a successful trace's `error` column round-trips
+     through DuckDB/pandas as `NaN` (a float), not `None`, and `NaN` is
+     truthy in Python, so the existing `not error` check didn't catch
+     it. Fixed by checking `isinstance(error, str)` first.
+  2. `TypeError: boolean value of NA is ambiguous` computing cost — the
+     nullable-int `usage__*` columns use `pd.NA` for missing values
+     (rows where SQL generation failed before any usage was recorded),
+     and `pd.NA or 0` raises rather than evaluating truthy/falsy like a
+     normal Python value. Fixed with explicit `.fillna(0)` before the
+     cost computation instead of a truthiness fallback inside the
+     `apply`.
+- Verified all 6 charts against the real data: 20 total queries, 80%
+  execution accuracy, $0.0010 total cost, p50/p95 latency 31.7s/58.0s,
+  45% feedback rate (7 up / 2 down), and top failure categories
+  correctly split into "SQL execution error" (3 real DuckDB Binder
+  Errors) and "LLM backend error" (1 real Ollama timeout) — cross-checked
+  the categorization against the raw `error` text directly, not just
+  trusted the chart.
+- `tests/test_dashboard_metrics.py`: 15 tests covering `compute_cost_usd`
+  (Ollama free, `gpt-4o-mini` matches published pricing, unknown model
+  defaults to free), `compute_percentiles` (empty/single-value/known
+  range, order-independence), and `categorize_error` (every category,
+  including the `NaN` regression case above).
+- Full suite: 256/256 passing (`uv run pytest`).
+
+### Measured (real numbers from this session)
+
+- Real demo telemetry: 20 traces (12 `llama3`, 5 `gpt-4o-mini`, plus 3
+  from Day 15-16), 9 feedback events (7 up, 2 down). 80% execution
+  accuracy, p50 latency 31.7s, p95 latency 58.0s, total cost $0.0010.
+  These are demo-run numbers (scripted question selection against the
+  live system), not a formal evaluation result — Days 10-14's
+  evaluation reports remain the source for accuracy/retrieval claims.
+- Cost: ~$0.001 in real OpenAI (`gpt-4o-mini`) usage for the 5 paid
+  demo calls, flagged and confirmed before use per `CLAUDE.md` rule 5.
+- Test suite: **256/256 passing** (`uv run pytest`).
+
+### What's next
+
+Days 1-18 are complete. Next, in order (`PROJECT_PLAN.md` Section 8):
+1. **Day 19** — Kestra nightly refresh flow.
+2. **Day 20** — consolidate into a single `docker-compose.yml` (app +
+   DB + Kestra), pin all dependency versions — will need `api`, `ui`,
+   and possibly a `monitoring` service added to the existing `seed`
+   service, plus a way to run the dlt pipeline on a schedule.
+3. **Day 21** — full README, run tests, submit.
+
+Nothing from Day 18 is left unfinished. One further paid API call
+series was made this session (OpenAI `gpt-4o-mini`, 5 demo calls,
+~$0.001, flagged and confirmed before use) — no other paid or metered
+services were used.
