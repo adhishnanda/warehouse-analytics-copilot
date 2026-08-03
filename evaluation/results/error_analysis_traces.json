@@ -1,0 +1,562 @@
+[
+  {
+    "question_id": "t1_11",
+    "tier": 1,
+    "question": "How many order lines are currently open?",
+    "reference_result": [
+      [
+        291303
+      ]
+    ],
+    "attempts": [
+      {
+        "sql": "SELECT COUNT(*) AS open_order_lines\nFROM fact_orders\nWHERE line_status = 'O'",
+        "error": null,
+        "valid": true,
+        "validation_reason": "Result looks plausible.",
+        "result_rows": [
+          [
+            300716
+          ]
+        ]
+      }
+    ],
+    "final_sql": "SELECT COUNT(*) AS open_order_lines\nFROM fact_orders\nWHERE line_status = 'O'",
+    "final_result_rows": [
+      [
+        300716
+      ]
+    ],
+    "succeeded_per_validate_result": true
+  },
+  {
+    "question_id": "t2_01",
+    "tier": 2,
+    "question": "What is total revenue by region?",
+    "reference_result": [
+      [
+        "MIDDLE EAST",
+        4172220238.6
+      ],
+      [
+        "ASIA",
+        4120876821.83
+      ],
+      [
+        "AFRICA",
+        4104593801.24
+      ],
+      [
+        "EUROPE",
+        4082606859.78
+      ],
+      [
+        "AMERICA",
+        4054774607.6
+      ]
+    ],
+    "attempts": [
+      {
+        "sql": "SELECT dc.market_segment, SUM(fo.net_revenue) AS total_revenue\nFROM fact_orders fo\nJOIN dim_customer dc ON fo.customer_key = dc.customer_key\nGROUP BY dc.market_segment",
+        "error": null,
+        "valid": true,
+        "validation_reason": "Result looks plausible.",
+        "result_rows": [
+          [
+            "AUTOMOBILE",
+            "4093302461.47"
+          ],
+          [
+            "MACHINERY",
+            "4161899286.35"
+          ],
+          [
+            "FURNITURE",
+            "3985249385.23"
+          ],
+          [
+            "BUILDING",
+            "4281563978.80"
+          ],
+          [
+            "HOUSEHOLD",
+            "4013057217.20"
+          ]
+        ]
+      }
+    ],
+    "final_sql": "SELECT dc.market_segment, SUM(fo.net_revenue) AS total_revenue\nFROM fact_orders fo\nJOIN dim_customer dc ON fo.customer_key = dc.customer_key\nGROUP BY dc.market_segment",
+    "final_result_rows": [
+      [
+        "AUTOMOBILE",
+        "4093302461.47"
+      ],
+      [
+        "MACHINERY",
+        "4161899286.35"
+      ],
+      [
+        "FURNITURE",
+        "3985249385.23"
+      ],
+      [
+        "BUILDING",
+        "4281563978.80"
+      ],
+      [
+        "HOUSEHOLD",
+        "4013057217.20"
+      ]
+    ],
+    "succeeded_per_validate_result": true
+  },
+  {
+    "question_id": "t2_02",
+    "tier": 2,
+    "question": "What is total revenue by supplier nation?",
+    "reference_result": [
+      [
+        "CHINA",
+        1077813867.64
+      ],
+      [
+        "GERMANY",
+        1027360255.98
+      ],
+      [
+        "SAUDI ARABIA",
+        979234484.73
+      ],
+      [
+        "INDIA",
+        957192178.89
+      ],
+      [
+        "RUSSIA",
+        955735277.7
+      ],
+      [
+        "INDONESIA",
+        918457184.38
+      ],
+      [
+        "BRAZIL",
+        897968000.75
+      ],
+      [
+        "IRAQ",
+        879920947.15
+      ],
+      [
+        "JAPAN",
+        847476235.82
+      ],
+      [
+        "MOROCCO",
+        827816583.09
+      ],
+      [
+        "IRAN",
+        823663841.07
+      ],
+      [
+        "EGYPT",
+        819673904.13
+      ],
+      [
+        "PERU",
+        818005607.61
+      ],
+      [
+        "VIETNAM",
+        800225152.33
+      ],
+      [
+        "UNITED KINGDOM",
+        794952239.52
+      ],
+      [
+        "ARGENTINA",
+        785879451.77
+      ],
+      [
+        "CANADA",
+        768729263.4
+      ],
+      [
+        "ALGERIA",
+        749942913.63
+      ],
+      [
+        "KENYA",
+        734125370.16
+      ],
+      [
+        "UNITED STATES",
+        732070806.28
+      ],
+      [
+        "FRANCE",
+        712549497.2
+      ],
+      [
+        "MOZAMBIQUE",
+        689786984.67
+      ],
+      [
+        "ETHIOPIA",
+        682200320.28
+      ],
+      [
+        "ROMANIA",
+        674632370.39
+      ],
+      [
+        "JORDAN",
+        579659590.48
+      ]
+    ],
+    "attempts": [
+      {
+        "sql": "SELECT ds.nation_key, SUM(fo.net_revenue) AS total_revenue\nFROM fact_orders AS fo\nJOIN dim_supplier AS ds ON fo.supplier_key = ds.supplier_key\nGROUP BY ds.nation_key",
+        "error": null,
+        "valid": true,
+        "validation_reason": "Result looks plausible.",
+        "result_rows": [
+          [
+            0,
+            "749942913.63"
+          ],
+          [
+            1,
+            "785879451.77"
+          ],
+          [
+            2,
+            "897968000.75"
+          ],
+          [
+            3,
+            "768729263.40"
+          ],
+          [
+            4,
+            "819673904.13"
+          ],
+          [
+            5,
+            "682200320.28"
+          ],
+          [
+            6,
+            "712549497.20"
+          ],
+          [
+            7,
+            "1027360255.98"
+          ],
+          [
+            8,
+            "957192178.89"
+          ],
+          [
+            9,
+            "918457184.38"
+          ],
+          [
+            10,
+            "823663841.07"
+          ],
+          [
+            11,
+            "879920947.15"
+          ],
+          [
+            12,
+            "847476235.82"
+          ],
+          [
+            13,
+            "579659590.48"
+          ],
+          [
+            14,
+            "734125370.16"
+          ],
+          [
+            15,
+            "827816583.09"
+          ],
+          [
+            16,
+            "689786984.67"
+          ],
+          [
+            17,
+            "818005607.61"
+          ],
+          [
+            18,
+            "1077813867.64"
+          ],
+          [
+            19,
+            "674632370.39"
+          ],
+          [
+            20,
+            "979234484.73"
+          ],
+          [
+            21,
+            "800225152.33"
+          ],
+          [
+            22,
+            "955735277.70"
+          ],
+          [
+            23,
+            "794952239.52"
+          ],
+          [
+            24,
+            "732070806.28"
+          ]
+        ]
+      }
+    ],
+    "final_sql": "SELECT ds.nation_key, SUM(fo.net_revenue) AS total_revenue\nFROM fact_orders AS fo\nJOIN dim_supplier AS ds ON fo.supplier_key = ds.supplier_key\nGROUP BY ds.nation_key",
+    "final_result_rows": [
+      [
+        0,
+        "749942913.63"
+      ],
+      [
+        1,
+        "785879451.77"
+      ],
+      [
+        2,
+        "897968000.75"
+      ],
+      [
+        3,
+        "768729263.40"
+      ],
+      [
+        4,
+        "819673904.13"
+      ],
+      [
+        5,
+        "682200320.28"
+      ],
+      [
+        6,
+        "712549497.20"
+      ],
+      [
+        7,
+        "1027360255.98"
+      ],
+      [
+        8,
+        "957192178.89"
+      ],
+      [
+        9,
+        "918457184.38"
+      ],
+      [
+        10,
+        "823663841.07"
+      ],
+      [
+        11,
+        "879920947.15"
+      ],
+      [
+        12,
+        "847476235.82"
+      ],
+      [
+        13,
+        "579659590.48"
+      ],
+      [
+        14,
+        "734125370.16"
+      ],
+      [
+        15,
+        "827816583.09"
+      ],
+      [
+        16,
+        "689786984.67"
+      ],
+      [
+        17,
+        "818005607.61"
+      ],
+      [
+        18,
+        "1077813867.64"
+      ],
+      [
+        19,
+        "674632370.39"
+      ],
+      [
+        20,
+        "979234484.73"
+      ],
+      [
+        21,
+        "800225152.33"
+      ],
+      [
+        22,
+        "955735277.70"
+      ],
+      [
+        23,
+        "794952239.52"
+      ],
+      [
+        24,
+        "732070806.28"
+      ]
+    ],
+    "succeeded_per_validate_result": true
+  },
+  {
+    "question_id": "t2_07",
+    "tier": 2,
+    "question": "Which market segment generates the most revenue?",
+    "reference_result": [
+      [
+        "BUILDING",
+        4281563978.8
+      ]
+    ],
+    "attempts": [
+      {
+        "sql": "SELECT dim_customer.market_segment, SUM(fact_orders.net_revenue) AS total_revenue\nFROM dim_customer\nJOIN fact_orders ON dim_customer.customer_key = fact_orders.customer_key\nGROUP BY dim_customer.market_segment\nORDER BY total_revenue DESC\nLIMIT 1",
+        "error": null,
+        "valid": true,
+        "validation_reason": "Result looks plausible.",
+        "result_rows": [
+          [
+            "BUILDING",
+            "4281563978.80"
+          ]
+        ]
+      }
+    ],
+    "final_sql": "SELECT dim_customer.market_segment, SUM(fact_orders.net_revenue) AS total_revenue\nFROM dim_customer\nJOIN fact_orders ON dim_customer.customer_key = fact_orders.customer_key\nGROUP BY dim_customer.market_segment\nORDER BY total_revenue DESC\nLIMIT 1",
+    "final_result_rows": [
+      [
+        "BUILDING",
+        "4281563978.80"
+      ]
+    ],
+    "succeeded_per_validate_result": true
+  },
+  {
+    "question_id": "t2_11",
+    "tier": 2,
+    "question": "How many order lines were fulfilled by suppliers based in Asia?",
+    "reference_result": [
+      [
+        134374
+      ]
+    ],
+    "attempts": [
+      {
+        "sql": "SELECT COUNT(*) AS fulfilled_order_lines\nFROM fact_orders\nJOIN dim_supplier ON fact_orders.supplier_key = dim_supplier.supplier_key\nWHERE dim_supplier.nation_key IN (SELECT nation_key FROM dim_region WHERE region = 'Asia')\nAND fact_orders.line_status = 'F'",
+        "error": "Binder Error: Referenced column \"region\" not found in FROM clause!\nCandidate bindings: \"region_name\", \"discount\", \"nation_key\", \"nation_name\", \"return_flag\"\n\nLINE 4: ....nation_key IN (SELECT nation_key FROM dim_region WHERE region = 'Asia')\n                                                                   ^",
+        "valid": false,
+        "validation_reason": "execution failed",
+        "result_rows": null
+      },
+      {
+        "sql": "SELECT COUNT(*) AS order_line_count\nFROM fact_orders\nWHERE supplier_key IN (SELECT supplier_key FROM dim_supplier WHERE nation_key IN (SELECT nation_key FROM dim_region WHERE region_name = 'Asia'))\nAND line_status = 'F'",
+        "error": null,
+        "valid": true,
+        "validation_reason": "Result looks plausible.",
+        "result_rows": [
+          [
+            0
+          ]
+        ]
+      }
+    ],
+    "final_sql": "SELECT COUNT(*) AS order_line_count\nFROM fact_orders\nWHERE supplier_key IN (SELECT supplier_key FROM dim_supplier WHERE nation_key IN (SELECT nation_key FROM dim_region WHERE region_name = 'Asia'))\nAND line_status = 'F'",
+    "final_result_rows": [
+      [
+        0
+      ]
+    ],
+    "succeeded_per_validate_result": true
+  },
+  {
+    "question_id": "t2_13",
+    "tier": 2,
+    "question": "How many orders were placed by customers based in Germany?",
+    "reference_result": [
+      [
+        6029
+      ]
+    ],
+    "attempts": [
+      {
+        "sql": "SELECT COUNT(DISTINCT order_key) AS order_count\nFROM fact_orders\nJOIN dim_customer ON fact_orders.customer_key = dim_customer.customer_key\nWHERE dim_customer.nation_key = (SELECT nation_key FROM dim_region WHERE name = 'Germany')",
+        "error": "Binder Error: Referenced column \"name\" not found in FROM clause!\nCandidate bindings: \"address\", \"nation_key\", \"line_number\", \"line_status\", \"nation_name\"\n\nLINE 4: ...omer.nation_key = (SELECT nation_key FROM dim_region WHERE name = 'Germany')) AS _guarded_subquery LIMIT 1001\n                                                                      ^",
+        "valid": false,
+        "validation_reason": "execution failed",
+        "result_rows": null
+      },
+      {
+        "sql": "SELECT COUNT(DISTINCT fo.order_key) AS order_count\nFROM fact_orders AS fo\nJOIN dim_customer AS dc ON fo.customer_key = dc.customer_key\nWHERE dc.nation_key = (SELECT nation_key FROM dim_region WHERE name = 'Germany')",
+        "error": "Binder Error: Referenced column \"name\" not found in FROM clause!\nCandidate bindings: \"address\", \"nation_key\", \"line_number\", \"line_status\", \"nation_name\"\n\nLINE 4: ... dc.nation_key = (SELECT nation_key FROM dim_region WHERE name = 'Germany')) AS _guarded_subquery LIMIT 1001\n                                                                     ^",
+        "valid": false,
+        "validation_reason": "execution failed",
+        "result_rows": null
+      }
+    ],
+    "final_sql": "SELECT COUNT(DISTINCT fo.order_key) AS order_count\nFROM fact_orders AS fo\nJOIN dim_customer AS dc ON fo.customer_key = dc.customer_key\nWHERE dc.nation_key = (SELECT nation_key FROM dim_region WHERE name = 'Germany')",
+    "final_result_rows": null,
+    "succeeded_per_validate_result": false
+  },
+  {
+    "question_id": "t2_14",
+    "tier": 2,
+    "question": "What was total revenue in the most recent quarter of data we have?",
+    "reference_result": [
+      [
+        290797719.5
+      ]
+    ],
+    "attempts": [
+      {
+        "sql": "SELECT SUM(net_revenue) AS total_revenue\nFROM fact_orders\nWHERE order_date_key >= date_trunc('quarter', current_date) - interval '3 months'\n  AND order_date_key < date_trunc('quarter', current_date)",
+        "error": "Binder Error: Cannot compare values of type INTEGER and type TIMESTAMP - an explicit cast is required\n\nLINE 3: WHERE order_date_key >= date_trunc('quarter', current_date) - interval '3 months...\n                             ^",
+        "valid": false,
+        "validation_reason": "execution failed",
+        "result_rows": null
+      },
+      {
+        "sql": "SELECT SUM(net_revenue) AS total_revenue\nFROM fact_orders\nWHERE order_date_key >= date_trunc('quarter', current_date)",
+        "error": "Binder Error: Cannot compare values of type INTEGER and type TIMESTAMP - an explicit cast is required\n\nLINE 3: WHERE order_date_key >= date_trunc('quarter', current_date)) AS _guarded_subquery...\n                             ^",
+        "valid": false,
+        "validation_reason": "execution failed",
+        "result_rows": null
+      }
+    ],
+    "final_sql": "SELECT SUM(net_revenue) AS total_revenue\nFROM fact_orders\nWHERE order_date_key >= date_trunc('quarter', current_date)",
+    "final_result_rows": null,
+    "succeeded_per_validate_result": false
+  }
+]
