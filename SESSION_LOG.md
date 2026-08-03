@@ -339,8 +339,8 @@ Week 1 and Week 2 Days 8-11 are complete. Next, in order (see
    should confirm and formalise that rather than being a surprise.
 
 Nothing from Days 1-11 is left unfinished. One paid API call series was
-made this session (OpenAI `gpt-4o-mini`, flagged before use per
-`CLAUDE.md` rule 5): total token usage across all runs (smoke tests, the
+made this session (OpenAI `gpt-4o-mini`, flagged before use per the
+project's cost-discipline rule): total token usage across all runs (smoke tests, the
 Groq-quota-corrupted run, and the clean final run) was approximately
 160,000 tokens — a real, measured figure, summed from actual per-run
 usage totals (79,407 + 78,597 from the two full runs, plus smaller
@@ -412,8 +412,8 @@ measured against the golden set).
   `loop.py` signature change (the pre-existing 202 tests plus this
   session's 5 new ones).
 - Ran the real evaluation against `gpt-4o-mini` (paid call series,
-  flagged and confirmed with you before running, per `CLAUDE.md` rule 5,
-  after you separately asked to double-check the 0.880 figure's
+  flagged and confirmed with you before running, per the project's
+  cost-discipline rule, after you separately asked to double-check the 0.880 figure's
   consistency between `SESSION_LOG.md` and `evaluation/results/
   llm_eval.md` first — confirmed identical, no discrepancy).
 
@@ -580,8 +580,8 @@ lift, Tier-3 ablation, error analysis) is done, matching
 Nothing from Days 13-14 is left unfinished. Two further paid API call
 series were made this session (OpenAI `gpt-4o-mini`: ablation ~20 calls
 across 2 runs after the timeout fix, error-analysis rerun 7 questions
-up to 14 calls — both flagged before use per `CLAUDE.md` rule 5) — no
-other paid or metered services were used.
+up to 14 calls — both flagged before use per the project's
+cost-discipline rule) — no other paid or metered services were used.
 
 ## 2026-08-03 — Session 3: Days 15-16
 
@@ -1134,7 +1134,8 @@ browser against real telemetry data.
   live system), not a formal evaluation result — Days 10-14's
   evaluation reports remain the source for accuracy/retrieval claims.
 - Cost: ~$0.001 in real OpenAI (`gpt-4o-mini`) usage for the 5 paid
-  demo calls, flagged and confirmed before use per `CLAUDE.md` rule 5.
+  demo calls, flagged and confirmed before use per the project's
+  cost-discipline rule.
 - Test suite: **256/256 passing** (`uv run pytest`).
 
 ### What's next

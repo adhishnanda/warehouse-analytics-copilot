@@ -15,6 +15,9 @@ data/telemetry/
 # Environment
 .env
 
+# Local development notes - not part of the public deliverable
+CLAUDE.md
+
 # OS
 .DS_Store
 Thumbs.db

@@ -71,8 +71,8 @@ These apply throughout the build, not just at the end:
 - **Cost ceiling: roughly €0–5 total**, using free-tier inference (Groq,
   Ollama) for development and a small paid model only for final,
   reproducible evaluation runs.
-- **Buildable with Claude Code / ChatGPT at a basic tier.** No tooling that
-  requires paid infrastructure beyond what's listed in Section 6.
+- **Buildable with standard AI coding tools at a basic tier.** No tooling
+  that requires paid infrastructure beyond what's listed in Section 6.
 - **Timebox: 3 weeks**, structured so that if time is lost, the cuts happen
   in a defined order (see Section 8, "if time runs short").
 - **Never described as "production."** It is production-*patterned* —
@@ -189,9 +189,9 @@ one small, self-contained file.
 
 - **Development:** Groq free tier (Llama 3.3 70B) and/or local Ollama —
   zero or near-zero cost
-- **Final evaluation runs:** one small paid model (e.g. GPT-4o-mini or
-  Claude Haiku) so the reported numbers come from a named, reproducible
-  model — total cost expected in the low single-digit euros
+- **Final evaluation runs:** one small paid model (e.g. GPT-4o-mini) so
+  the reported numbers come from a named, reproducible model — total
+  cost expected in the low single-digit euros
 
 ---
 

@@ -1,7 +1,7 @@
 """LLM evaluation: 2 models x 2 prompt strategies, execution accuracy.
 
 Models: local Ollama llama3 (free, zero quota risk) and OpenAI gpt-4o-mini
-(paid — flagged before use per CLAUDE.md rule 5; cost is tracked from real
+(paid — flagged before use per project convention; cost is tracked from real
 API usage, not estimated). Originally used Groq's hosted llama-3.3-70b-versatile
 for the free-tier arm; switched to local Ollama after Groq's free-tier daily
 token quota (100K/day) was exhausted mid-evaluation by repeated runs during
