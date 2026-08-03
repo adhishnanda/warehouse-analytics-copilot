@@ -1,5 +1,9 @@
 # Warehouse Analytics Copilot
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](pyproject.toml)
+[![Tests](https://img.shields.io/badge/tests-279%20passing-brightgreen.svg)](docs/setup.md#running-the-tests)
+
 Agentic text-to-SQL over a governed semantic layer. Ask a business
 question in plain English and get back a number, the SQL that produced
 it, and a chart, grounded in documented table and metric definitions
@@ -8,18 +12,39 @@ rather than a raw, ungoverned schema dump.
 This is the capstone project for DataTalks.Club's **LLM Zoomcamp**. It is a
 portfolio project, not a production system. See [Limitations](#limitations).
 
+## Contents
+
+- [Problem](#problem)
+- [How it works](#how-it-works)
+- [Dataset](#dataset)
+- [Semantic layer](#semantic-layer)
+- [Evaluation](#evaluation)
+- [Interface](#interface)
+- [Ingestion pipeline](#ingestion-pipeline)
+- [Monitoring](#monitoring)
+- [Guardrails](#guardrails)
+- [Setup](#setup)
+- [Usage](#usage)
+- [Architecture](#architecture)
+- [Tech stack](#tech-stack)
+- [Limitations](#limitations)
+- [License](#license)
+
 ## Problem
 
-Handing an LLM a raw database schema and asking it to write SQL runs into a
-predictable failure mode: the model can find the right *table*, but it
-guesses the wrong *business logic*. On this project's own warehouse, for
-example, `fact_orders` is stored at line-item grain, not order grain, so a
-naive "average order value" query averages over line items and silently
-under-reports the real figure by roughly 4x (TPC-H orders average ~4 lines
-each). Real semantic layers (dbt Semantic Layer, LookML) solve this by
-defining metrics once, centrally, as documented, named SQL, so "average
-order value" always means the same formula everywhere it's used, and an
-LLM interface can be pointed at that definition instead of reinventing it
+Handing an LLM a raw database schema and asking it to write SQL runs into
+a predictable failure mode: the model finds the right *table* but guesses
+the wrong *business logic*.
+
+On this project's own warehouse, for example, `fact_orders` is stored at
+line-item grain, not order grain. A naive "average order value" query
+averages over line items and silently under-reports the real figure by
+roughly 4x (TPC-H orders average ~4 lines each).
+
+Real semantic layers (dbt Semantic Layer, LookML) solve this by defining
+metrics once, centrally, as documented, named SQL, so "average order
+value" always means the same formula everywhere it's used. An LLM
+interface can be pointed at that definition instead of reinventing it
 per question.
 
 That's what "governed" means here: the agent never sees the full database
