@@ -1225,3 +1225,98 @@ just this log.
 Nothing left incomplete. No paid API calls were made fixing the tag
 bug; the `gpt-4o-mini` spot-checks above were real paid calls, already
 covered by your own explicit request to test the paid backend.
+
+## 2026-08-04 — Session 9: Day 21
+
+**Scope planned:** Day 21 — full README, `docs/setup.md`, `docs/usage.md`,
+`docs/architecture.md`, a final full test run. Per your instruction this
+session: no push — you are creating the GitHub repo and pushing
+everything yourself.
+
+**Scope built:** Day 21, complete. This closes out all 21 days of
+`PROJECT_PLAN.md` Section 8 — every core rubric criterion and all three
+best-practice items now have working, tested code and, where the rubric
+calls for it, a real measured evaluation report in `evaluation/results/`.
+
+### What was built
+
+- **`README.md`**: rewritten in full per Section 10's skeleton, filled
+  with only real numbers pulled from `evaluation/results/*.md` and prior
+  session log entries — no invented figures. Every evaluation table links
+  to its full report; the Limitations section is built directly from
+  `error_analysis.md`'s seven traced failure categories rather than
+  written generically.
+- **`docs/setup.md`**: prerequisites, `.env` reference table, both a
+  full-container (`docker compose up --build`) and a local (`uv sync` +
+  `uv run ...`) reproduction path, how to verify each service is actually
+  answering (not just "up"), how to opt into the paid backend without
+  reintroducing the Day 20 API-key-interpolation incident, exact commands
+  to reproduce every evaluation report, and the three platform quirks
+  found live in Days 19-20 (Docker socket permission, Kestra's working-
+  directory override, `docker compose config` printing secrets)
+  consolidated in one place instead of only living in old session log
+  entries.
+- **`docs/usage.md`**: example questions mapped to what each demonstrates
+  (including a Tier-3 "average order value" question as a direct pointer
+  to why the semantic layer exists), the `/ask` and `/feedback` API
+  contracts with real example payloads, and how to read the monitoring
+  dashboard.
+- **`docs/architecture.md`**: design rationale for DuckDB, the semantic
+  layer format, the retrieval pipeline, the agent loop, the four-layer
+  guardrail design, telemetry/monitoring, and orchestration — written to
+  explain *why*, since the code itself already documents *what*.
+- **Real screenshots, not placeholders.** The Day 20 stack was still
+  running live from your own manual testing (Session 8), so rather than
+  leave `[screenshot: X]` markers, four real screenshots were captured
+  via live browser automation and committed to `docs/screenshots/`:
+  the UI landing page, a chart-shaped answer, the monitoring dashboard's
+  KPI row, and its failure-categories chart. Capturing these needed 2
+  more questions through the UI, which was running against the paid
+  `gpt-4o-mini` backend (your `docker-compose.override.yml`, still
+  active from Session 8) — flagged and confirmed with you before asking
+  them, per the project's cost-discipline rule.
+- **A genuinely interesting result surfaced by that live check, not a
+  bug**: asking "What is our repeat customer rate?" returned **1.00**,
+  not the 0.6665 recorded from a Days 6-7 anecdotal `llama3` run. Checked
+  rather than assumed either number was right: the generated SQL matched
+  `metrics.yml`'s canonical `repeat_customer_rate` formula exactly, and
+  running that same formula directly against `data/warehouse.duckdb`
+  independently returned `0.9998` (rounds to 1.00) — confirmed correct,
+  not a display bug. With 150,000 orders across 15,000 customers
+  (average 10 orders/customer), nearly every customer having 2+ orders is
+  the expected outcome; the earlier 0.6665 was very likely a wrong
+  answer from a different, non-canonical formula that happened to fall
+  inside `validate_result`'s `[0, 1]` plausibility range and so was
+  never flagged — a live, concrete instance of the same
+  heuristic-validator limitation `error_analysis.md` already documents
+  from Days 12-14. Not chased further (it's a Days 6-7 anecdotal note,
+  not a measured evaluation result, and doesn't change any reported
+  number), but recorded here rather than silently ignored.
+- Final full test run: **279/279 passing** (`uv run pytest`) — up from
+  277/277 at the end of Day 20, reflecting the regression tests added in
+  Session 8's post-Day-20 fixes.
+
+### Measured (real numbers from this session)
+
+- Test suite: **279/279 passing** (`uv run pytest`).
+- Live spot-check: `repeat_customer_rate` = 0.9998 (`gpt-4o-mini`-generated
+  SQL, matches `metrics.yml`'s canonical formula, independently confirmed
+  by direct query against the real warehouse).
+- Cost: 2 real `gpt-4o-mini` calls for screenshot capture, flagged and
+  confirmed before use, comparable to Session 8's spot-checks (~$0.0001
+  order of magnitude, not separately metered).
+
+### Project status
+
+All 21 days of `PROJECT_PLAN.md` Section 8 are complete: every core
+rubric criterion (Section 3) has working, tested code, and all three
+best-practice items (hybrid search, reranking, query rewriting) are
+implemented *and* evaluated with real numbers in `evaluation/results/`.
+The only unattempted item in the entire plan is the cloud deployment
+bonus (Section 3: "+2, stretch goal only, attempted if Week 3 finishes
+early") — explicitly optional, and Week 3 did not finish early, so this
+was correctly never scheduled rather than cut.
+
+Nothing from Day 21 is left unfinished. Per your instruction, no `git
+push` was run this session — commits are local only, and you are
+creating the GitHub repo and pushing everything yourself.
