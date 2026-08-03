@@ -12,6 +12,13 @@ DUCKDB_PATH = Path(os.environ.get("DUCKDB_PATH", REPO_ROOT / "data" / "warehouse
 TPCH_SCALE_FACTOR = float(os.environ.get("TPCH_SCALE_FACTOR", "0.1"))
 TRACE_LOG_PATH = Path(os.environ.get("TRACE_LOG_PATH", REPO_ROOT / "data" / "telemetry" / "traces.jsonl"))
 
+# Separate from DUCKDB_PATH deliberately: the API holds a persistent
+# read-only connection to the warehouse for the app's lifetime, and DuckDB
+# allows only one read-write connection to a given file at a time. Loading
+# telemetry into the same file would contend with that connection every
+# time the dlt pipeline (src/telemetry/dlt_pipeline.py) runs.
+TELEMETRY_DB_PATH = Path(os.environ.get("TELEMETRY_DB_PATH", REPO_ROOT / "data" / "telemetry.duckdb"))
+
 # Week 3 interface (Section 5.5): interactive use defaults to the free local
 # model so running or demoing the app never incurs API cost by accident.
 # Set AGENT_CHAT_BACKEND=openai to use the Day 11 production winner

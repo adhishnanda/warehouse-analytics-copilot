@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Agentic text-to-SQL over a governed semantic layer"
 requires-python = ">=3.13,<3.14"
 dependencies = [
+    "dlt[duckdb]>=1.29.1",
     "duckdb>=1.1,<2",
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
