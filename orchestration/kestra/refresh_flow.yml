@@ -1,0 +1,36 @@
+id: warehouse_nightly_refresh
+namespace: warehouse.analytics.copilot
+description: |
+  Nightly refresh of the warehouse (TPC-H reseed + retrieval indices) and
+  the telemetry tables (dlt load of the trace/feedback JSONL log).
+  Runs both stages in the project's own Docker image
+  (warehouse-analytics-copilot:latest, built from the repo root
+  Dockerfile) against the warehouse_data named volume shared with the
+  api/ui services, so a refresh is visible to the running app without
+  restarting it.
+
+tasks:
+  - id: refresh_warehouse
+    type: io.kestra.plugin.scripts.shell.Commands
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+      volumes:
+        - "warehouse_data:/app/data"
+    containerImage: warehouse-analytics-copilot:latest
+    commands:
+      - cd /app && uv run python scripts/seed_and_index.py
+
+  - id: refresh_telemetry
+    type: io.kestra.plugin.scripts.shell.Commands
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+      volumes:
+        - "warehouse_data:/app/data"
+    containerImage: warehouse-analytics-copilot:latest
+    commands:
+      - cd /app && uv run python -m src.telemetry.dlt_pipeline
+
+triggers:
+  - id: nightly
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 2 * * *"
