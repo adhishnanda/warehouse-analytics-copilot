@@ -10,6 +10,16 @@ load_dotenv(REPO_ROOT / ".env")
 
 DUCKDB_PATH = Path(os.environ.get("DUCKDB_PATH", REPO_ROOT / "data" / "warehouse.duckdb"))
 TPCH_SCALE_FACTOR = float(os.environ.get("TPCH_SCALE_FACTOR", "0.1"))
+TRACE_LOG_PATH = Path(os.environ.get("TRACE_LOG_PATH", REPO_ROOT / "data" / "telemetry" / "traces.jsonl"))
+
+# Week 3 interface (Section 5.5): interactive use defaults to the free local
+# model so running or demoing the app never incurs API cost by accident.
+# Set AGENT_CHAT_BACKEND=openai to use the Day 11 production winner
+# (gpt-4o-mini) instead — see src/app/api.py.
+AGENT_CHAT_BACKEND = os.environ.get("AGENT_CHAT_BACKEND", "ollama")
+
+# Where the Streamlit UI (src/app/ui.py) finds the FastAPI backend.
+API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
 
 SEMANTIC_LAYER_DIR = REPO_ROOT / "semantic_layer"
 

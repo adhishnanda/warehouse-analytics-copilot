@@ -8,6 +8,7 @@ __pycache__/
 data/raw/
 data/warehouse.duckdb
 data/indices/
+data/telemetry/
 *.duckdb
 *.duckdb.wal
 

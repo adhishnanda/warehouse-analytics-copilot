@@ -5,10 +5,15 @@ description = "Agentic text-to-SQL over a governed semantic layer"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "duckdb>=1.1,<2",
+    "fastapi>=0.141.1",
+    "httpx>=0.28.1",
+    "pandas>=3.0.5",
     "python-dotenv>=1.2.2",
     "pyyaml>=6,<7",
     "rank-bm25>=0.2.2",
     "sentence-transformers>=5.6.1",
+    "streamlit>=1.60.0",
+    "uvicorn[standard]>=0.52.1",
 ]
 
 [dependency-groups]
