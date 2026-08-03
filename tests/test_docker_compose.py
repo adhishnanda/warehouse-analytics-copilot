@@ -92,3 +92,27 @@ def test_compose_file_is_syntactically_valid():
         timeout=30,
     )
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.skipif(shutil.which("docker") is None, reason="docker CLI not available")
+@pytest.mark.parametrize("image", ["kestra/kestra:v1.3.30", "postgres:15.18"])
+def test_pinned_third_party_images_actually_resolve(image):
+    """A real bug (found by manual testing, not by any test that existed
+    at the time): docker-compose.yml pinned kestra/kestra:1.3.30,
+    inferred from the running instance's self-reported version string
+    rather than checked against the real registry tag list (which uses
+    a "v" prefix). `docker compose config --quiet` only validates YAML
+    syntax - it does not catch a nonexistent image tag, so this passed
+    every check that existed and still failed on `docker compose up`.
+    `docker manifest inspect` resolves the tag against the registry
+    without a full pull, so this catches that class of bug without
+    slowing the suite down. Needs network access - not run in
+    network-isolated environments.
+    """
+    result = subprocess.run(
+        ["docker", "manifest", "inspect", image],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, f"{image} did not resolve: {result.stderr}"
