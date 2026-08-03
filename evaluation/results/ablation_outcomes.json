@@ -1,0 +1,762 @@
+[
+  {
+    "question_id": "t3_01",
+    "tier": 3,
+    "sql": "WITH repeat_customers AS (\n  SELECT customer_key, COUNT(*) as total_orders\n  FROM fact_orders\n  GROUP BY customer_key\n)\nSELECT COUNT(*)/(\n  SELECT COUNT(*) \n  FROM dim_customer \n) AS repeat_customer_rate\nFROM repeat_customers\nWHERE total_orders > 1",
+    "correct": false,
+    "error": "result mismatch",
+    "usage": {
+      "prompt_tokens": 360,
+      "completion_tokens": 67,
+      "total_tokens": 427
+    },
+    "model": "llama3",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_02",
+    "tier": 3,
+    "sql": "WITH repeated_customers AS (\n  SELECT customer_key, COUNT(*) as order_count\n  FROM fact_orders\n  GROUP BY customer_key\n)\nSELECT \n  (COUNT(*) / (SELECT COUNT(*) FROM dim_customer)) * 100.0 as share_of_repeated_customers\nFROM repeated_customers\nWHERE order_count > 1",
+    "correct": false,
+    "error": "result mismatch",
+    "usage": {
+      "prompt_tokens": 366,
+      "completion_tokens": 74,
+      "total_tokens": 440
+    },
+    "model": "llama3",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_03",
+    "tier": 3,
+    "sql": "WITH customer_orders AS (\n  SELECT customer_key, COUNT(*) as order_count\n  FROM fact_orders\n  GROUP BY customer_key\n)\nSELECT \n  (COUNT(*) / (SELECT COUNT(*) from dim_customer)) * 1.0 AS return_fraction\nFROM \n  customer_orders\nWHERE \n  order_count > 1",
+    "correct": false,
+    "error": "result mismatch",
+    "usage": {
+      "prompt_tokens": 372,
+      "completion_tokens": 71,
+      "total_tokens": 443
+    },
+    "model": "llama3",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_04",
+    "tier": 3,
+    "sql": "WITH \n  order_revenue AS (\n    SELECT AVG(fact_orders.net_revenue) AS average_order_revenue\n    FROM fact_orders\n  )\nSELECT * FROM order_revenue",
+    "correct": false,
+    "error": "result mismatch",
+    "usage": {
+      "prompt_tokens": 363,
+      "completion_tokens": 43,
+      "total_tokens": 406
+    },
+    "model": "llama3",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_05",
+    "tier": 3,
+    "sql": "WITH revenue_per_order AS (\n  SELECT AVG(net_revenue) AS average_revenue\n  FROM fact_orders\n)\nSELECT * \nFROM revenue_per_order",
+    "correct": false,
+    "error": "result mismatch",
+    "usage": {
+      "prompt_tokens": 363,
+      "completion_tokens": 36,
+      "total_tokens": 399
+    },
+    "model": "llama3",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_06",
+    "tier": 3,
+    "sql": "WITH order_revenue AS (\n  SELECT AVG(net_revenue) AS average_order_revenue\n  FROM fact_orders\n)\nSELECT * \nFROM order_revenue",
+    "correct": false,
+    "error": "result mismatch",
+    "usage": {
+      "prompt_tokens": 366,
+      "completion_tokens": 37,
+      "total_tokens": 403
+    },
+    "model": "llama3",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_07",
+    "tier": 3,
+    "sql": "WITH order_discounts AS (\n    SELECT AVG(discount) AS overall_discount_rate \n    FROM fact_orders\n)\nSELECT * FROM order_discounts",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 360,
+      "completion_tokens": 34,
+      "total_tokens": 394
+    },
+    "model": "llama3",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_08",
+    "tier": 3,
+    "sql": "WITH avg_discount AS (\n  SELECT AVG(fact_orders.discount) as avg_discount\n  FROM fact_orders\n)\nSELECT * from avg_discount",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 366,
+      "completion_tokens": 33,
+      "total_tokens": 399
+    },
+    "model": "llama3",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_09",
+    "tier": 3,
+    "sql": "WITH orders AS (\n  SELECT \n    SUM(fact_orders.net_revenue - fact_orders.discount) AS total_net_revenue\n  FROM \n    fact_orders\n)\nSELECT * \nFROM \norders",
+    "correct": false,
+    "error": "result mismatch",
+    "usage": {
+      "prompt_tokens": 364,
+      "completion_tokens": 45,
+      "total_tokens": 409
+    },
+    "model": "llama3",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_10",
+    "tier": 3,
+    "sql": "SELECT SUM(fact_orders.net_revenue) AS total_revenue\nFROM fact_orders",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 362,
+      "completion_tokens": 22,
+      "total_tokens": 384
+    },
+    "model": "llama3",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_01",
+    "tier": 3,
+    "sql": "WITH customer_order_counts AS (\n    SELECT customer_key, COUNT(DISTINCT order_key) AS order_count\n    FROM fact_orders\n    GROUP BY customer_key\n)\nSELECT COUNT(DISTINCT CASE WHEN order_count >= 2 THEN customer_key END)\n       * 1.0 / COUNT(DISTINCT customer_key) AS repeat_customer_rate\nFROM customer_order_counts",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 1154,
+      "completion_tokens": 79,
+      "total_tokens": 1233
+    },
+    "model": "llama3",
+    "condition": "retrieval enabled"
+  },
+  {
+    "question_id": "t3_02",
+    "tier": 3,
+    "sql": "WITH customer_order_counts AS (\n    SELECT customer_key, COUNT(DISTINCT order_key) AS order_count\n    FROM fact_orders\n    GROUP BY customer_key\n)\nSELECT COUNT(DISTINCT CASE WHEN order_count >= 2 THEN customer_key END) \n       * 1.0 / COUNT(DISTINCT customer_key) AS repeat_customer_rate\nFROM customer_order_counts",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 1159,
+      "completion_tokens": 80,
+      "total_tokens": 1239
+    },
+    "model": "llama3",
+    "condition": "retrieval enabled"
+  },
+  {
+    "question_id": "t3_03",
+    "tier": 3,
+    "sql": "WITH customer_order_counts AS (\n    SELECT customer_key, COUNT(DISTINCT order_key) AS order_count\n    FROM fact_orders\n    GROUP BY customer_key\n)\nSELECT COUNT(DISTINCT CASE WHEN order_count >= 2 THEN customer_key END)\n       * 1.0 / COUNT(DISTINCT customer_key) AS repeat_customer_rate\nFROM customer_order_counts",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 1286,
+      "completion_tokens": 79,
+      "total_tokens": 1365
+    },
+    "model": "llama3",
+    "condition": "retrieval enabled"
+  },
+  {
+    "question_id": "t3_04",
+    "tier": 3,
+    "sql": "WITH revenue_per_order AS (\n  SELECT SUM(net_revenue) AS total_revenue, COUNT(DISTINCT order_key) AS num_orders\n  FROM fact_orders\n)\nSELECT total_revenue AS average_order_revenue\nFROM revenue_per_order",
+    "correct": false,
+    "error": "result mismatch",
+    "usage": {
+      "prompt_tokens": 1014,
+      "completion_tokens": 54,
+      "total_tokens": 1068
+    },
+    "model": "llama3",
+    "condition": "retrieval enabled"
+  },
+  {
+    "question_id": "t3_05",
+    "tier": 3,
+    "sql": "WITH revenue_per_order AS (\n    SELECT SUM(net_revenue) * 1.0 / COUNT(DISTINCT order_key) AS average_order_value\n    FROM fact_orders\n)\nSELECT *\nFROM revenue_per_order",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 1014,
+      "completion_tokens": 49,
+      "total_tokens": 1063
+    },
+    "model": "llama3",
+    "condition": "retrieval enabled"
+  },
+  {
+    "question_id": "t3_06",
+    "tier": 3,
+    "sql": "SELECT SUM(net_revenue) * 1.0 / COUNT(DISTINCT order_key) AS average_order_value\nFROM fact_orders",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 1131,
+      "completion_tokens": 33,
+      "total_tokens": 1164
+    },
+    "model": "llama3",
+    "condition": "retrieval enabled"
+  },
+  {
+    "question_id": "t3_07",
+    "tier": 3,
+    "sql": "SELECT AVG(discount) AS average_discount_rate\nFROM fact_orders\nWHERE order_key IN (\n  SELECT order_key\n  FROM fact_orders\n  GROUP BY order_key\n)",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 1097,
+      "completion_tokens": 41,
+      "total_tokens": 1138
+    },
+    "model": "llama3",
+    "condition": "retrieval enabled"
+  },
+  {
+    "question_id": "t3_08",
+    "tier": 3,
+    "sql": "WITH discount_rates AS (\n    SELECT AVG(discount) AS average_discount_rate\n    FROM fact_orders\n)\nSELECT *\nFROM discount_rates",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 1081,
+      "completion_tokens": 31,
+      "total_tokens": 1112
+    },
+    "model": "llama3",
+    "condition": "retrieval enabled"
+  },
+  {
+    "question_id": "t3_09",
+    "tier": 3,
+    "sql": "WITH revenue_net_of_discounts AS (\n    SELECT SUM(extended_price * (1 - discount)) AS total_revenue\n    FROM fact_orders\n)\nSELECT total_revenue\nFROM revenue_net_of_discounts",
+    "correct": false,
+    "error": "result mismatch",
+    "usage": {
+      "prompt_tokens": 1015,
+      "completion_tokens": 47,
+      "total_tokens": 1062
+    },
+    "model": "llama3",
+    "condition": "retrieval enabled"
+  },
+  {
+    "question_id": "t3_10",
+    "tier": 3,
+    "sql": "SELECT SUM(net_revenue) AS total_revenue\nFROM fact_orders",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 1127,
+      "completion_tokens": 20,
+      "total_tokens": 1147
+    },
+    "model": "llama3",
+    "condition": "retrieval enabled"
+  },
+  {
+    "question_id": "t3_01",
+    "tier": 3,
+    "sql": "WITH customer_orders AS (\n    SELECT customer_key, COUNT(DISTINCT order_key) AS order_count\n    FROM fact_orders\n    GROUP BY customer_key\n),\nrepeat_customers AS (\n    SELECT COUNT(*) AS repeat_customer_count\n    FROM customer_orders\n    WHERE order_count > 1\n),\ntotal_customers AS (\n    SELECT COUNT(*) AS total_customer_count\n    FROM customer_orders\n)\nSELECT \n    (SELECT repeat_customer_count FROM repeat_customers) * 1.0 / (SELECT total_customer_count FROM total_customers) AS repeat_customer_rate",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 357,
+      "completion_tokens": 119,
+      "total_tokens": 476,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_02",
+    "tier": 3,
+    "sql": "WITH customer_orders AS (\n    SELECT customer_key, COUNT(order_key) AS order_count\n    FROM fact_orders\n    GROUP BY customer_key\n)\nSELECT \n    COUNT(CASE WHEN order_count > 1 THEN 1 END) * 1.0 / COUNT(*) AS share_of_repeat_customers\nFROM customer_orders",
+    "correct": false,
+    "error": "result mismatch",
+    "usage": {
+      "prompt_tokens": 363,
+      "completion_tokens": 70,
+      "total_tokens": 433,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_03",
+    "tier": 3,
+    "sql": "WITH customer_counts AS (\n    SELECT customer_key, COUNT(DISTINCT order_key) AS order_count\n    FROM fact_orders\n    GROUP BY customer_key\n),\nrepeat_customers AS (\n    SELECT COUNT(*) AS repeat_count\n    FROM customer_counts\n    WHERE order_count > 1\n),\ntotal_customers AS (\n    SELECT COUNT(*) AS total_count\n    FROM dim_customer\n)\nSELECT CAST(repeat_count AS DOUBLE) / total_count AS fraction_repeat_customers\nFROM repeat_customers, total_customers",
+    "correct": false,
+    "error": "result mismatch",
+    "usage": {
+      "prompt_tokens": 369,
+      "completion_tokens": 109,
+      "total_tokens": 478,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_04",
+    "tier": 3,
+    "sql": "SELECT AVG(net_revenue) AS average_revenue_per_order\nFROM fact_orders",
+    "correct": false,
+    "error": "result mismatch",
+    "usage": {
+      "prompt_tokens": 360,
+      "completion_tokens": 21,
+      "total_tokens": 381,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_05",
+    "tier": 3,
+    "sql": "SELECT AVG(net_revenue) AS typical_revenue_per_order\nFROM fact_orders",
+    "correct": false,
+    "error": "result mismatch",
+    "usage": {
+      "prompt_tokens": 359,
+      "completion_tokens": 21,
+      "total_tokens": 380,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_06",
+    "tier": 3,
+    "sql": "SELECT AVG(net_revenue) AS average_order_revenue\nFROM fact_orders",
+    "correct": false,
+    "error": "result mismatch",
+    "usage": {
+      "prompt_tokens": 363,
+      "completion_tokens": 20,
+      "total_tokens": 383,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_07",
+    "tier": 3,
+    "sql": "SELECT AVG(discount) AS overall_discount_rate\nFROM fact_orders",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 357,
+      "completion_tokens": 18,
+      "total_tokens": 375,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_08",
+    "tier": 3,
+    "sql": "SELECT AVG(discount) AS avg_discount_per_order_line\nFROM fact_orders",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 363,
+      "completion_tokens": 20,
+      "total_tokens": 383,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_09",
+    "tier": 3,
+    "sql": "SELECT SUM(net_revenue) AS total_revenue\nFROM fact_orders",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 360,
+      "completion_tokens": 19,
+      "total_tokens": 379,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_10",
+    "tier": 3,
+    "sql": "SELECT SUM(net_revenue) AS total_revenue\nFROM fact_orders",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 359,
+      "completion_tokens": 19,
+      "total_tokens": 378,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval disabled"
+  },
+  {
+    "question_id": "t3_01",
+    "tier": 3,
+    "sql": "WITH customer_order_counts AS (\n    SELECT customer_key, COUNT(DISTINCT order_key) AS order_count\n    FROM fact_orders\n    GROUP BY customer_key\n)\nSELECT COUNT(DISTINCT CASE WHEN order_count >= 2 THEN customer_key END)\n       * 1.0 / COUNT(DISTINCT customer_key) AS repeat_customer_rate\nFROM customer_order_counts",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 1138,
+      "completion_tokens": 79,
+      "total_tokens": 1217,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval enabled"
+  },
+  {
+    "question_id": "t3_02",
+    "tier": 3,
+    "sql": "WITH customer_order_counts AS (\n    SELECT customer_key, COUNT(DISTINCT order_key) AS order_count\n    FROM fact_orders\n    GROUP BY customer_key\n)\nSELECT COUNT(DISTINCT CASE WHEN order_count >= 2 THEN customer_key END)\n       * 1.0 / COUNT(DISTINCT customer_key) AS repeat_customer_rate\nFROM customer_order_counts",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 1144,
+      "completion_tokens": 79,
+      "total_tokens": 1223,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval enabled"
+  },
+  {
+    "question_id": "t3_03",
+    "tier": 3,
+    "sql": "WITH customer_order_counts AS (\n    SELECT customer_key, COUNT(DISTINCT order_key) AS order_count\n    FROM fact_orders\n    GROUP BY customer_key\n)\nSELECT COUNT(DISTINCT CASE WHEN order_count >= 2 THEN customer_key END)\n       * 1.0 / COUNT(DISTINCT customer_key) AS repeat_customer_rate\nFROM customer_order_counts",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 1269,
+      "completion_tokens": 79,
+      "total_tokens": 1348,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval enabled"
+  },
+  {
+    "question_id": "t3_04",
+    "tier": 3,
+    "sql": "SELECT SUM(net_revenue) * 1.0 / COUNT(DISTINCT order_key) AS average_order_value\nFROM fact_orders",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 987,
+      "completion_tokens": 32,
+      "total_tokens": 1019,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval enabled"
+  },
+  {
+    "question_id": "t3_05",
+    "tier": 3,
+    "sql": "SELECT SUM(net_revenue) * 1.0 / COUNT(DISTINCT order_key) AS average_order_value\nFROM fact_orders",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 1001,
+      "completion_tokens": 32,
+      "total_tokens": 1033,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval enabled"
+  },
+  {
+    "question_id": "t3_06",
+    "tier": 3,
+    "sql": "SELECT SUM(net_revenue) * 1.0 / COUNT(DISTINCT order_key) AS average_order_value\nFROM fact_orders",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 1005,
+      "completion_tokens": 32,
+      "total_tokens": 1037,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval enabled"
+  },
+  {
+    "question_id": "t3_07",
+    "tier": 3,
+    "sql": "SELECT AVG(discount) AS average_discount_rate\nFROM fact_orders",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 1037,
+      "completion_tokens": 18,
+      "total_tokens": 1055,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval enabled"
+  },
+  {
+    "question_id": "t3_08",
+    "tier": 3,
+    "sql": "SELECT AVG(discount) AS average_discount_rate\nFROM fact_orders",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 1005,
+      "completion_tokens": 18,
+      "total_tokens": 1023,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval enabled"
+  },
+  {
+    "question_id": "t3_09",
+    "tier": 3,
+    "sql": "SELECT SUM(net_revenue) AS total_revenue\nFROM fact_orders",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 1106,
+      "completion_tokens": 19,
+      "total_tokens": 1125,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval enabled"
+  },
+  {
+    "question_id": "t3_10",
+    "tier": 3,
+    "sql": "SELECT SUM(net_revenue) AS total_revenue\nFROM fact_orders",
+    "correct": true,
+    "error": null,
+    "usage": {
+      "prompt_tokens": 1106,
+      "completion_tokens": 19,
+      "total_tokens": 1125,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "audio_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "audio_tokens": 0,
+        "accepted_prediction_tokens": 0,
+        "rejected_prediction_tokens": 0
+      }
+    },
+    "model": "gpt-4o-mini",
+    "condition": "retrieval enabled"
+  }
+]
