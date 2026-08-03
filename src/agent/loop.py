@@ -6,12 +6,13 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Callable
 
 import duckdb
 
 from src.agent.guardrails import GuardrailViolation, QueryResult, QueryTimeoutError
 from src.agent.tools import run_sql, search_schema, validate_result
-from src.llm_client import OllamaUnavailableError, chat
+from src.llm_client import ApiUnavailableError, OllamaUnavailableError, chat
 from src.retrieval.reranker import Reranker
 from src.retrieval.retriever import Retriever
 
@@ -70,10 +71,22 @@ def _build_context_block(context: list[dict]) -> str:
     return "\n\n".join(chunk["text"] for chunk in context)
 
 
-def generate_sql(question: str, context: list[dict], error_feedback: str | None = None) -> str:
-    """Ask the local model for a single SQL statement grounded in the
-    retrieved semantic layer context.
+def generate_sql(
+    question: str,
+    context: list[dict],
+    error_feedback: str | None = None,
+    chat_fn: Callable[[str, str], str] | None = None,
+) -> str:
+    """Ask the model for a single SQL statement grounded in the retrieved
+    semantic layer context.
+
+    chat_fn defaults to the local Ollama chat() (resolved at call time, not
+    bind time, so tests can monkeypatch module-level `chat`). Passing a
+    different chat_fn — e.g. an OpenAI-backed one — lets evaluation scripts
+    drive the same retry-loop logic against a different model without
+    duplicating it.
     """
+    fn = chat_fn or chat
     user_content = f"Question: {question}\n\nContext:\n{_build_context_block(context)}"
     if error_feedback:
         user_content += (
@@ -81,8 +94,8 @@ def generate_sql(question: str, context: list[dict], error_feedback: str | None 
             "Write a corrected query."
         )
     try:
-        reply = chat(SQL_SYSTEM_PROMPT, user_content)
-    except OllamaUnavailableError as exc:
+        reply = fn(SQL_SYSTEM_PROMPT, user_content)
+    except (OllamaUnavailableError, ApiUnavailableError) as exc:
         raise SqlGenerationError(str(exc)) from exc
 
     return _extract_sql(reply)
@@ -94,6 +107,7 @@ def answer_question(
     retriever: Retriever,
     reranker: Reranker,
     max_attempts: int = MAX_ATTEMPTS,
+    chat_fn: Callable[[str, str], str] | None = None,
 ) -> AgentResponse:
     """Run the full pipeline: retrieve context, generate SQL, execute it,
     validate the result, and retry (feeding the error back to the model)
@@ -105,7 +119,7 @@ def answer_question(
 
     for _ in range(max_attempts):
         try:
-            sql = generate_sql(question, context, error_feedback)
+            sql = generate_sql(question, context, error_feedback, chat_fn)
         except SqlGenerationError as exc:
             attempts.append(
                 AgentAttempt(

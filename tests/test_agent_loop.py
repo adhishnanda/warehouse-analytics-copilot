@@ -126,6 +126,21 @@ def test_generate_sql_raises_on_backend_unreachable(monkeypatch):
         loop.generate_sql("how many orders", context=[])
 
 
+def test_chat_fn_override_bypasses_module_level_chat(monkeypatch, con, retriever, reranker):
+    # module-level chat() would raise if called; passing chat_fn should mean it never is
+    monkeypatch.setattr(loop, "chat", lambda *a, **k: (_ for _ in ()).throw(AssertionError("should not be called")))
+    calls = {"n": 0}
+
+    def fake_chat_fn(_system, _user):
+        calls["n"] += 1
+        return "```sql\nSELECT COUNT(*) FROM fact_orders\n```"
+
+    response = answer_question("how many orders", con, retriever, reranker, chat_fn=fake_chat_fn)
+
+    assert response.succeeded is True
+    assert calls["n"] == 1
+
+
 def test_response_includes_retrieved_context(monkeypatch, con, retriever, reranker):
     monkeypatch.setattr(loop, "chat", lambda *a, **k: "```sql\nSELECT COUNT(*) FROM fact_orders\n```")
 
