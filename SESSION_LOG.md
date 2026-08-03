@@ -774,6 +774,158 @@ Days 1-17 are complete. Next, in order (`PROJECT_PLAN.md` Section 8):
 Nothing from Day 17 is left unfinished. No paid or metered services
 were used this session.
 
+## 2026-08-03 — Session 6: Day 19
+
+**Scope planned:** Day 19 (Kestra nightly refresh flow).
+
+**Scope built:** The flow is authored, schema-validated against a real
+Kestra instance's own generated documentation, and its actual task
+logic (TPC-H reseed, index build, dlt telemetry load) was proven to run
+correctly end-to-end inside the Docker containers Kestra spins up. One
+piece — confirming the named-volume mount actually persists that output
+— could not be verified under Kestra's lightweight `server local` dev
+mode in this session; this is called out explicitly below rather than
+claimed as done, and is the first thing to confirm once Day 20 stands
+up the real `server standalone` Kestra service in `docker-compose.yml`.
+
+### What was built
+
+- `orchestration/kestra/refresh_flow.yml`: two sequential tasks
+  (`refresh_warehouse` running `scripts/seed_and_index.py`,
+  `refresh_telemetry` running `src/telemetry/dlt_pipeline.py`), both
+  executed in the project's own `warehouse-analytics-copilot:latest`
+  Docker image via Kestra's Docker task runner, both mounting a shared
+  `warehouse_data` named volume at `/app/data` (the same mount point the
+  `seed` service already uses, and what `api`/`ui` will use once Day 20
+  wires them into the same compose file) — so a refresh is visible to
+  the running app without a restart. A `Schedule` trigger runs it
+  nightly at 02:00.
+- `orchestration/kestra/application.yml`: the Kestra plugin config
+  required to allow the Docker task runner's `volumes` property at all
+  (`volume-enabled: true` — disabled by default for security). Intended
+  for Day 20's `docker-compose.yml` Kestra service, not just today's
+  local exploration.
+- `Dockerfile`: added `ENV UV_HTTP_TIMEOUT=300`. The project's own
+  image failed to build the first time — a genuine network timeout (not
+  a real error) downloading one of `torch`'s bundled NVIDIA CUDA
+  packages (never used; all inference in this project is CPU-only) at
+  the default 30s per-request timeout. Tried fixing this properly first
+  (pinning `torch` to the CPU-only PyTorch wheel index via `uv`'s
+  `[tool.uv.sources]`, which would also shrink the image significantly)
+  but could not get `uv` to actually honour the override after several
+  attempts and reasonable syntax variations checked against `uv lock
+  --refresh -v`'s own resolution trace — reverted that dependency change
+  rather than ship something that looked plausible but demonstrably
+  didn't work, and fixed the actual observed failure (the timeout)
+  directly instead, per the error message's own suggestion. The image
+  build is correct and reproducible; it is just larger than it needs to
+  be. Worth revisiting when there's a clear path to make the `uv`
+  override actually apply.
+- `tests/test_kestra_flow.py`: 7 structural tests (parses, required
+  keys, exactly the two expected tasks in order, both use the project's
+  Docker image, both share the same named volume, both `cd /app` before
+  `uv run` — a regression test for a real bug below — and the trigger
+  is a valid 5-field cron schedule). Not a substitute for a live run;
+  documents what a future edit must not silently break.
+- Full suite: 263/263 passing (`uv run pytest`).
+
+### Live verification: what was actually run, not just written
+
+Ran a real local Kestra 1.3.30 instance in Docker and worked through it
+properly rather than stopping at "the YAML looks right":
+
+- Generated the Docker task runner's official schema and example docs
+  directly from the running instance (`kestra plugins doc --core
+  --schema`) rather than guessing task-type syntax from memory — this
+  is what the flow's `type: io.kestra.plugin.scripts.shell.Commands` /
+  `taskRunner: { type: io.kestra.plugin.scripts.runner.docker.Docker }`
+  structure is based on.
+- **Real bug 1 — Docker socket permission.** First execution attempt
+  failed in ~0.2s with `java.net.BindException: Permission denied`
+  connecting to the mounted `docker.sock`, a known Docker-Desktop-on-
+  Windows quirk where the non-root `kestra` user inside the container
+  can't reach the socket. Fixed for local testing by running the
+  container as root; a real operational note for Day 20's compose file
+  too (needs the same fix or a matching group/GID, not just "add a
+  kestra service and hope").
+- **Real bug 2 — wrong working directory.** Second attempt failed with
+  `can't open file 'scripts/seed_and_index.py'` — Kestra's Docker task
+  runner sets its own per-task scratch directory as the container's
+  working directory, silently overriding the image's `WORKDIR /app`.
+  Fixed by prefixing both tasks' commands with `cd /app &&` (now
+  covered by `test_tasks_cd_into_app_before_running_uv`).
+- **Third attempt succeeded end-to-end** (`SUCCESS` state on both
+  tasks): the log output shows genuine execution, not a hollow pass —
+  `refresh_warehouse` logged the real row counts (`fact_orders:
+  600,572 rows`, etc., matching every prior day's measured numbers)
+  and `Indexed 11 semantic layer documents`; `refresh_telemetry` logged
+  a real dlt load into `telemetry_events`. Deliberately checked the
+  underlying data too, not just the green checkmark — see below.
+- **Open item — volume persistence unconfirmed under `server local`.**
+  Inspecting the actual task container afterwards (`docker inspect
+  --format '{{json .Mounts}}'`) showed an empty mount list: the
+  `volumes: ["warehouse_data:/app/data"]` binding was not applied,
+  despite the schema confirming the YAML syntax is correct and despite
+  trying three separate ways to load the `volume-enabled: true` plugin
+  setting into the server (a mounted `application.yml` at its
+  documented default path, the same file passed via an explicit `-c`
+  flag, and the `KESTRA_CONFIGURATION` env var Kestra's own official
+  quickstarts use) — confirmed each config delivery mechanism actually
+  reached the container (verified file contents and env var contents
+  directly inside it) without the setting taking visible effect.
+  Diagnosed as a specific, named limitation rather than an unexplained
+  failure: `server local` is Kestra's lightweight embedded-H2 dev-server
+  command, and a quick test switching to `server standalone` (the mode
+  a real deployment — and Day 20's `docker-compose.yml` — would use)
+  hit a different, expected error instead (missing datasource
+  configuration for standalone mode, not a config-loading problem),
+  consistent with `local` mode not wiring up the same full configuration
+  pipeline. Not chased further after this became clear, per the
+  project's own guidance to timebox debugging and record an honest
+  "pending" rather than force a conclusion. **This must be re-checked
+  once Day 20's `docker-compose.yml` runs Kestra in `standalone` mode
+  with a real config file** — if the same gap appears there, it needs a
+  real fix (not a workaround) before the flow can be called done.
+- Cleaned up: removed the exploration container and the local
+  `warehouse_data` test volume before finishing so nothing untracked is
+  left running.
+
+### Measured (real numbers from this session)
+
+- Live flow execution's real output (from `refresh_warehouse`'s task
+  log): `fact_orders: 600,572 rows`, `dim_customer: 15,000`,
+  `dim_product: 20,000`, `dim_date: 2,553`, `dim_region: 25`,
+  `dim_supplier: 1,000` — identical to every previous day's seed
+  (TPC-H's deterministic generation, confirmed again independently).
+  `Indexed 11 semantic layer documents`.
+- Test suite: **263/263 passing** (`uv run pytest`).
+- No paid API calls this session.
+
+### What's next
+
+Days 1-18 plus the flow-authoring and task-logic verification for Day
+19 are complete. Before Day 19 can be marked fully done (not just
+"authored and partially verified"):
+1. Confirm the `warehouse_data` volume mount actually persists data
+   once Day 20's `docker-compose.yml` runs Kestra in `standalone` mode
+   with `orchestration/kestra/application.yml` — this is the one open
+   item carried over.
+
+Then, in order (`PROJECT_PLAN.md` Section 8):
+2. **Day 20** — consolidate into a single `docker-compose.yml` (app +
+   DB + Kestra), pin all dependency versions. Needs: `api`, `ui`, and
+   `kestra` services added to the existing `seed` service; the Docker
+   socket permission fix from today baked into the Kestra service
+   definition (not just today's ad hoc `--user root`); the
+   `warehouse_data` named volume shared consistently across all
+   services; and the volume-persistence item above resolved, not just
+   carried forward again.
+3. **Day 21** — full README, run tests, submit.
+
+Nothing from today was left silently incomplete — the one open item is
+named explicitly above rather than folded into a claimed "done". No
+paid or metered services were used this session.
+
 ## 2026-08-03 — Session 5: Day 18
 
 **Scope planned:** Day 18 (monitoring dashboard with 6 named charts,
