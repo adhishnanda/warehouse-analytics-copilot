@@ -1,0 +1,20 @@
+# Chart color theme shared by both Streamlit surfaces (src/app/ui.py and
+# monitoring/dashboard.py) - both run with the repo root as their working
+# directory (locally via `uv run streamlit run ...` from the repo root, and
+# in docker-compose.yml, where WORKDIR is /app for every service), so one
+# file here covers both.
+#
+# Fixed hue order below is a validated categorical palette (checked for
+# colorblind-safe adjacent-pair separation and surface contrast in both
+# light and dark), not Vega/Streamlit's arbitrary default cycle. This
+# Streamlit version only supports one chartCategoricalColors list (no
+# separate dark-mode variant), so it's set once at the top level. Charts
+# that carry a success/failure meaning (monitoring/dashboard.py's accuracy
+# and failure charts) override this with an explicit, mode-invariant status
+# color instead; everything else uses these slots in order.
+
+[theme]
+chartCategoricalColors = [
+    "#2a78d6", "#eb6834", "#1baf7a", "#eda100",
+    "#e87ba4", "#008300", "#4a3aa7", "#e34948",
+]

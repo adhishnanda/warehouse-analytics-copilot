@@ -111,9 +111,21 @@ def render_answer(data: dict) -> None:
             for column, value in zip(columns, rows[0]):
                 st.metric(_label(column), _format_value(value), border=True)
     elif kind == "bar":
-        st.bar_chart(to_dataframe(columns, rows), x=columns[0], y=columns[1])
+        st.bar_chart(
+            to_dataframe(columns, rows),
+            x=columns[0],
+            y=columns[1],
+            x_label=_label(columns[0]),
+            y_label=_label(columns[1]),
+        )
     elif kind == "line":
-        st.line_chart(to_dataframe(columns, rows), x=columns[0], y=columns[1])
+        st.line_chart(
+            to_dataframe(columns, rows),
+            x=columns[0],
+            y=columns[1],
+            x_label=_label(columns[0]),
+            y_label=_label(columns[1]),
+        )
     else:
         st.dataframe(to_dataframe(columns, rows), hide_index=True)
 

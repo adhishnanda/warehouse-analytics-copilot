@@ -92,17 +92,26 @@ with st.container(horizontal=True):
 with st.container(border=True):
     st.subheader("Queries over time")
     queries_per_day = traces.groupby("date").size().reset_index(name="query_count")
-    st.bar_chart(queries_per_day, x="date", y="query_count")
+    st.bar_chart(queries_per_day, x="date", y="query_count", x_label="Date", y_label="Queries")
 
 with st.container(border=True):
     st.subheader("Execution accuracy over time")
     accuracy_per_day = traces.groupby("date")["succeeded"].mean().reset_index(name="accuracy")
-    st.line_chart(accuracy_per_day, x="date", y="accuracy")
+    # Explicit "good" status color, not the categorical default - this
+    # line is a success rate, not just another series.
+    st.line_chart(
+        accuracy_per_day,
+        x="date",
+        y="accuracy",
+        x_label="Date",
+        y_label="Execution accuracy",
+        color="#0ca30c",
+    )
 
 with st.container(border=True):
     st.subheader("Cost per query")
     cost_per_day = traces.groupby("date")["cost_usd"].mean().reset_index(name="avg_cost_usd")
-    st.bar_chart(cost_per_day, x="date", y="avg_cost_usd")
+    st.bar_chart(cost_per_day, x="date", y="avg_cost_usd", x_label="Date", y_label="Average cost (USD)")
     st.caption(
         "Local Ollama has no billable usage; only paid-backend "
         "(gpt-4o-mini) queries contribute non-zero cost, at the "
@@ -134,7 +143,16 @@ with st.container(border=True):
     else:
         category_counts = failures["category"].value_counts().reset_index()
         category_counts.columns = ["category", "count"]
-        st.bar_chart(category_counts, x="category", y="count")
+        # Explicit "critical" status color, matching the accuracy chart's
+        # "good" green - these two charts read as a pair.
+        st.bar_chart(
+            category_counts,
+            x="category",
+            y="count",
+            x_label="Failure category",
+            y_label="Count",
+            color="#d03b3b",
+        )
 
 with st.expander("Raw traces"):
     st.dataframe(
