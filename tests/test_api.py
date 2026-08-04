@@ -71,6 +71,7 @@ def test_ask_returns_a_successful_answer(client):
     assert body["rows"][0][0] > 0
     assert body["query_id"]
     assert body["model"] == "llama3"
+    assert body["chart_kind"] == "metric"
 
 
 def test_ask_rejects_empty_question(client):
@@ -115,3 +116,4 @@ def test_ask_reports_failure_when_guardrail_rejects_every_attempt(client, monkey
     assert body["succeeded"] is False
     assert body["error"] is not None
     assert body["row_count"] == 0
+    assert body["chart_kind"] == "table"

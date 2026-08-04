@@ -25,9 +25,6 @@ TELEMETRY_DB_PATH = Path(os.environ.get("TELEMETRY_DB_PATH", REPO_ROOT / "data" 
 # (gpt-4o-mini) instead — see src/app/api.py.
 AGENT_CHAT_BACKEND = os.environ.get("AGENT_CHAT_BACKEND", "ollama")
 
-# Where the Streamlit UI (src/app/ui.py) finds the FastAPI backend.
-API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
-
 SEMANTIC_LAYER_DIR = REPO_ROOT / "semantic_layer"
 
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")

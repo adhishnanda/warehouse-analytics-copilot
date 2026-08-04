@@ -3,7 +3,7 @@
 Assumes the stack is already running. See [`docs/setup.md`](setup.md) if
 not.
 
-## Via the Streamlit UI (`http://localhost:8501`)
+## Via the Ask page (`http://localhost:8000/ask`)
 
 Three suggestion pills are shown on load, one per golden-question tier:
 
@@ -34,7 +34,7 @@ Below every answer:
   rate chart.
 
 If a question fails after both attempts, the UI shows the error and an
-"Attempted SQL" expander with the last SQL tried, rather than a wrong
+"Attempted SQL" disclosure with the last SQL tried, rather than a wrong
 number presented as if correct.
 
 ### Questions worth trying, and what they demonstrate
@@ -72,9 +72,15 @@ Response shape:
   "succeeded": true,
   "error": null,
   "attempt_count": 1,
-  "model": "llama3"
+  "model": "llama3",
+  "chart_kind": "metric"
 }
 ```
+
+`chart_kind` (one of `metric`, `kpi_row`, `bar`, `line`, `table`) is
+computed server-side by `src/app/chart.py`'s `pick_chart_kind` and tells
+the frontend how to render the result, so that logic exists once, not
+duplicated in TypeScript.
 
 Submitting feedback (the `query_id` from an `/ask` response, and `"up"`
 or `"down"`):
@@ -85,17 +91,28 @@ curl -X POST http://localhost:8000/feedback \
   -d '{"query_id": "b3f1...", "vote": "up"}'
 ```
 
-`GET /health` returns `{"status": "ok"}` and is the readiness check the
-`ui` and `monitoring` services implicitly depend on (via `api` needing to
-be up).
+`GET /health` returns `{"status": "ok"}` and is the readiness check
+`seed`/`api` startup depends on in `docker-compose.yml`.
 
-## Monitoring dashboard (`http://localhost:8502`)
+The monitoring endpoints (`src/app/monitoring.py`) are plain `GET`s, e.g.:
 
-Reads `data/telemetry.duckdb`, which the dlt pipeline
-(`src/telemetry/dlt_pipeline.py`) loads from the raw trace log every
-`/ask`/`/feedback` call writes to. Click **Refresh data** after asking new
-questions to re-run the pipeline and see them reflected. It isn't live;
-each page load reads whatever was last loaded.
+```bash
+curl http://localhost:8000/monitoring/summary
+curl http://localhost:8000/monitoring/timeseries
+curl http://localhost:8000/monitoring/failures
+curl "http://localhost:8000/monitoring/traces?limit=50"
+```
+
+`POST /monitoring/refresh` re-runs the dlt pipeline against the current
+trace log (what the Monitoring page's **Refresh data** button calls).
+
+## Monitoring dashboard (`http://localhost:8000/monitoring`)
+
+Reads `data/telemetry.duckdb` (via the endpoints above), which the dlt
+pipeline (`src/telemetry/dlt_pipeline.py`) loads from the raw trace log
+every `/ask`/`/feedback` call writes to. Click **Refresh data** after
+asking new questions to re-run the pipeline and see them reflected. It
+isn't live; each page load reads whatever was last loaded.
 
 Three KPI tiles (total queries, execution accuracy, total cost), then six
 charts: queries over time, execution accuracy over time, cost per query,

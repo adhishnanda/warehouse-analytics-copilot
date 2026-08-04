@@ -8,3 +8,9 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .env
+
+# Built inside the frontend-build Dockerfile stage from a clean npm ci;
+# the host's own node_modules/dist would otherwise get pulled into the
+# final image by `COPY . .` and shadow the real build output.
+frontend/node_modules/
+frontend/dist/

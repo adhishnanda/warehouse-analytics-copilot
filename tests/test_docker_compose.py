@@ -19,7 +19,7 @@ from src.config import REPO_ROOT
 
 COMPOSE_PATH = REPO_ROOT / "docker-compose.yml"
 APP_IMAGE = "warehouse-analytics-copilot:latest"
-APP_SERVICES = ("seed", "api", "ui", "monitoring")
+APP_SERVICES = ("seed", "api")
 
 
 @pytest.fixture(scope="module")
@@ -28,8 +28,16 @@ def compose() -> dict:
 
 
 def test_compose_defines_the_expected_services(compose):
-    expected = {"seed", "api", "ui", "monitoring", "kestra-db", "kestra"}
+    expected = {"seed", "api", "kestra-db", "kestra"}
     assert expected <= set(compose["services"].keys())
+
+
+def test_ui_and_monitoring_are_not_separate_services(compose):
+    """Regression check: the React SPA is served by the api service
+    directly (src/app/api.py's static mount), not standalone Streamlit
+    services - a future edit must not silently reintroduce them."""
+    assert "ui" not in compose["services"]
+    assert "monitoring" not in compose["services"]
 
 
 @pytest.mark.parametrize("service_name", APP_SERVICES)

@@ -1,5 +1,7 @@
 """FastAPI backend: wraps the agent loop (src/agent/loop.py) as an HTTP
-API for the Streamlit frontend (src/app/ui.py).
+API for the React frontend (frontend/), and also serves that frontend's
+built static assets directly (see the bottom of this file) so the whole
+app is one process, one port, in production.
 
 Retrieval and generation are unchanged from the production agent loop —
 this file only adds the HTTP surface, per-request telemetry logging, and
@@ -18,10 +20,14 @@ import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from src.agent.loop import answer_question
-from src.config import AGENT_CHAT_BACKEND, OLLAMA_MODEL, OPENAI_MODEL, TRACE_LOG_PATH
+from src.app.chart import pick_chart_kind
+from src.app.monitoring import router as monitoring_router
+from src.config import AGENT_CHAT_BACKEND, OLLAMA_MODEL, OPENAI_MODEL, REPO_ROOT, TRACE_LOG_PATH
 from src.db.duckdb_client import get_connection
 from src.llm_client import chat_openai, chat_with_usage
 from src.retrieval.reranker import Reranker
@@ -75,6 +81,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Warehouse Analytics Copilot", lifespan=lifespan)
+app.include_router(monitoring_router)
 
 
 class AskRequest(BaseModel):
@@ -92,6 +99,7 @@ class AskResponse(BaseModel):
     error: str | None
     attempt_count: int
     model: str
+    chart_kind: str
 
 
 class FeedbackRequest(BaseModel):
@@ -153,17 +161,24 @@ def ask(request: AskRequest) -> AskResponse:
     )
 
     rows = [[_jsonable(v) for v in row] for row in result.rows] if result else []
+    columns = result.columns if result else []
+    # Computed on the already-jsonable rows, not result.rows directly:
+    # pick_chart_kind's numeric check excludes decimal.Decimal, so running
+    # it before conversion would misclassify numeric columns.
+    chart_kind = pick_chart_kind(columns, rows) if response.succeeded else "table"
+
     return AskResponse(
         query_id=query_id,
         question=request.question,
         sql=response.final_sql,
-        columns=result.columns if result else [],
+        columns=columns,
         rows=rows,
         row_count=result.row_count if result else 0,
         succeeded=response.succeeded,
         error=error,
         attempt_count=len(response.attempts),
         model=model,
+        chart_kind=chart_kind,
     )
 
 
@@ -174,3 +189,19 @@ def feedback(request: FeedbackRequest) -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True}
+
+
+# Serves the built React SPA (frontend/), registered after every API route
+# above so those always match first. Guarded on the build actually
+# existing so tests/test_api.py's TestClient still works on a machine
+# that hasn't run `npm run build`. The catch-all returns index.html for
+# any unmatched path - plain StaticFiles(html=True) only does this for
+# directory-index requests, not arbitrary client-side routes like
+# /monitoring surviving a hard refresh.
+_FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
+if _FRONTEND_DIST.exists():
+    app.mount("/assets", StaticFiles(directory=_FRONTEND_DIST / "assets"), name="frontend-assets")
+
+    @app.get("/{full_path:path}")
+    def spa_fallback(full_path: str) -> FileResponse:
+        return FileResponse(_FRONTEND_DIST / "index.html")

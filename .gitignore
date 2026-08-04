@@ -4,6 +4,11 @@ __pycache__/
 .venv/
 *.egg-info/
 
+# Node / frontend (frontend/)
+node_modules/
+frontend/dist/
+frontend/.vite/
+
 # Data (generated, not committed)
 data/raw/
 data/warehouse.duckdb

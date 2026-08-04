@@ -47,22 +47,21 @@ for local, no-cost use. The ones worth knowing about:
 docker compose up --build
 ```
 
-This builds one shared image (`warehouse-analytics-copilot:latest`) and
-brings up six services:
+This builds one shared image (`warehouse-analytics-copilot:latest`,
+built via a multi-stage Dockerfile that compiles the React frontend in a
+Node stage before the final Python stage) and brings up four services:
 
 | Service | What it does | Port |
 |---|---|---|
 | `seed` | Generates the TPC-H star schema and builds the retrieval indices, then exits | none |
-| `api` | FastAPI backend | `8000` |
-| `ui` | Streamlit frontend | `8501` |
-| `monitoring` | Streamlit monitoring dashboard | `8502` |
+| `api` | FastAPI backend, and serves the built React frontend (Ask + Monitoring pages) as static assets on the same port | `8000` |
 | `kestra-db` | Postgres, Kestra's metadata store | internal only |
 | `kestra` | Kestra orchestrator (`server standalone`), runs the nightly refresh flow | `8081` |
 
-`api`/`ui`/`monitoring` all share one named volume (`warehouse_data`)
-with `seed`, so the warehouse and indices `seed` builds are immediately
-visible to every other service, including after Kestra's flow refreshes
-them later, with no restart needed.
+`api` shares one named volume (`warehouse_data`) with `seed`, so the
+warehouse and indices `seed` builds are immediately visible to `api`,
+including after Kestra's flow refreshes them later, with no restart
+needed.
 
 **Verify it's actually working, not just "up":**
 
@@ -71,10 +70,10 @@ curl http://localhost:8000/health          # {"status":"ok"}
 ```
 
 Then open:
-- `http://localhost:8501`: ask a question (try one of the suggestion
-  pills), confirm you get an answer with an SQL expander
-- `http://localhost:8502`: confirm the monitoring dashboard loads (it
-  will be mostly empty until you've asked a few questions through the UI)
+- `http://localhost:8000/ask`: ask a question (try one of the suggestion
+  pills), confirm you get an answer with an SQL disclosure
+- `http://localhost:8000/monitoring`: confirm the monitoring dashboard
+  loads (it will be mostly empty until you've asked a few questions)
 - `http://localhost:8081`: Kestra's own UI; the nightly refresh flow
   (`orchestration/kestra/refresh_flow.yml`) should already be visible
   under Flows
@@ -117,24 +116,30 @@ costs from this project's own evaluation runs).
 ## Option B: local, non-Docker setup
 
 Useful for development, running tests, or iterating quickly without a
-Docker build.
+Docker build. Needs [Node.js](https://nodejs.org) 24+ in addition to the
+prerequisites above, for the frontend dev server.
 
 ```bash
 uv sync                                   # installs the pinned environment (uv.lock)
 uv run python scripts/seed_and_index.py   # generates the warehouse and retrieval indices
+cd frontend && npm install                # installs the frontend's own dependencies
 ```
 
 Then, in separate terminals:
 
 ```bash
 uv run uvicorn src.app.api:app --reload
-uv run streamlit run src/app/ui.py
-uv run streamlit run monitoring/dashboard.py --server.port 8502
+cd frontend && npm run dev
 ```
 
-Same URLs as the container path (`:8000`, `:8501`, `:8502`), except
-`OLLAMA_BASE_URL` now correctly resolves to `http://localhost:11434`
-directly (no `host.docker.internal` indirection needed on the host path).
+The frontend dev server runs on `:5173` and proxies `/ask`, `/feedback`,
+`/health`, and `/monitoring/*` to the API on `:8000` (see
+`frontend/vite.config.ts`), so open `http://localhost:5173` while
+iterating. `OLLAMA_BASE_URL` resolves to `http://localhost:11434`
+directly here (no `host.docker.internal` indirection needed on the host
+path). To check the production-like single-port setup instead
+(`http://localhost:8000` serving everything), build the frontend first:
+`cd frontend && npm run build`, then just run the `uvicorn` command above.
 
 ## Running the tests
 
@@ -142,15 +147,19 @@ directly (no `host.docker.internal` indirection needed on the host path).
 uv run pytest
 ```
 
-279 tests as of the last full run on this repo (`uv run pytest -q`),
+282 tests as of the last full run on this repo (`uv run pytest -q`),
 covering the warehouse schema, semantic layer and warehouse consistency,
 retrieval, reranking, query rewriting, agent guardrails and loop, the
 golden question set (every gold SQL statement is re-executed against the
-live warehouse on every test run), the API, telemetry, the dlt pipeline,
-the dashboard's metric functions, the Kestra flow's structure, and the
-`docker-compose.yml` structure. A handful of tests are conditionally
-skipped if Ollama or Docker isn't reachable in your environment; this is
-by design (see individual test files), not a failure.
+live warehouse on every test run), the API and monitoring endpoints,
+telemetry, the dlt pipeline, the monitoring dashboard's metric functions,
+the Kestra flow's structure, and the `docker-compose.yml` structure. A
+handful of tests are conditionally skipped if Ollama or Docker isn't
+reachable in your environment; this is by design (see individual test
+files), not a failure. The frontend has no separate automated test suite
+yet - `npm run build` type-checks it, and every change to it in this
+project has been verified live in a real browser rather than left
+unverified (see `SESSION_LOG.md`).
 
 ## Reproducing the evaluation numbers
 

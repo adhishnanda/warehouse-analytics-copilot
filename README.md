@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-279%20passing-brightgreen.svg)](docs/setup.md#running-the-tests)
+[![Tests](https://img.shields.io/badge/tests-282%20passing-brightgreen.svg)](docs/setup.md#running-the-tests)
 
 Agentic text-to-SQL over a governed semantic layer. Ask a business
 question in plain English and get back a number, the SQL that produced
@@ -58,7 +58,7 @@ mechanism catching exactly the grain mistake described above.
 
 ## How it works
 
-1. User asks a question via the Streamlit UI
+1. User asks a question via the web app
 2. Query rewriting expands it into a retrieval-friendlier form (local
    Ollama model, falls back to the original question if unreachable)
 3. Hybrid search (BM25 + vector) retrieves candidate chunks from the
@@ -239,9 +239,18 @@ as disclosed, measured limitations, not hidden.
 ## Interface
 
 FastAPI backend (`src/app/api.py`: `POST /ask`, `POST /feedback`,
-`GET /health`) plus a Streamlit frontend (`src/app/ui.py`: chat-style UI,
-answer rendered as a stat tile, KPI row, chart, or table depending on
-shape, SQL shown in an expander, thumbs up/down feedback).
+`GET /monitoring/*`) that also serves a React single-page app
+(`frontend/`, TypeScript + Tailwind + shadcn/ui + Recharts) as one process
+on one port. A sidebar splits it into two views:
+
+- **Ask**: chat-style UI, answer rendered as a stat tile, KPI row, chart,
+  or table depending on shape, SQL shown in a disclosure, thumbs up/down
+  feedback
+- **Monitoring**: the dashboard described below
+
+Chart type selection (`src/app/chart.py`'s `pick_chart_kind`) runs
+server-side and is returned in the `/ask` response, so the same
+tested logic drives the UI without being duplicated in TypeScript.
 
 ## Ingestion pipeline
 
@@ -255,7 +264,8 @@ restart.
 
 ## Monitoring
 
-Dashboard (`monitoring/dashboard.py`) with 6 named charts, reading from a
+The Monitoring page (`frontend/src/components/monitoring/`) with 6 named
+charts, reading from JSON endpoints (`src/app/monitoring.py`) backed by a
 [dlt](https://dlthub.com) pipeline (`src/telemetry/dlt_pipeline.py`) that
 loads the raw per-request trace log into DuckDB tables:
 
@@ -308,11 +318,12 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Then open the UI at `http://localhost:8501`, the API at
-`http://localhost:8000/health`, and the monitoring dashboard at
-`http://localhost:8502`. By default the API answers questions using the
-free local model. See `docs/setup.md` for the Ollama prerequisite and how
-to opt into the paid backend instead.
+Then open `http://localhost:8000`: the Ask page and Monitoring page are
+both served from that one address (`/ask` and `/monitoring`), by the same
+FastAPI process as the API itself (`/health`, `/ask`, `/monitoring/*`). By
+default the API answers questions using the free local model. See
+`docs/setup.md` for the Ollama prerequisite and how to opt into the paid
+backend instead.
 
 Dependency versions are pinned throughout: `uv.lock` (committed) for every
 Python package, `python:3.13.7-slim-bookworm` plus `uv==0.11.20` in the
@@ -338,11 +349,11 @@ orchestration: [`docs/architecture.md`](docs/architecture.md).
 | Retrieval | `rank-bm25` (keyword), `sentence-transformers` `all-MiniLM-L6-v2` (vector), `cross-encoder/ms-marco-MiniLM-L-6-v2` (rerank); all local, no API cost |
 | LLM | Local Ollama (`llama3`) for development and the free evaluation arm; OpenAI `gpt-4o-mini` for the paid evaluation arm and the production default in the shipped system |
 | Agent orchestration | Function-calling-style tool composition plus a custom retry loop (`src/agent/`) |
-| Interface | FastAPI (backend) + Streamlit (frontend) |
+| Interface | FastAPI (backend, and serves the built frontend as static assets) + React/TypeScript/Vite, Tailwind, shadcn/ui, Recharts (frontend) |
 | Ingestion / orchestration | Kestra (nightly refresh flow), dlt (telemetry ingestion) |
-| Monitoring | Streamlit dashboard, 6 charts, reading dlt-loaded DuckDB tables |
-| Containerization | Single `docker-compose.yml` (6 services, 1 shared image, 1 shared data volume) |
-| Testing | pytest, 279 tests |
+| Monitoring | React dashboard, 6 charts, reading JSON from `/monitoring/*` (backed by dlt-loaded DuckDB tables) |
+| Containerization | Single `docker-compose.yml` (4 services, 1 shared image built via a multi-stage Dockerfile, 1 shared data volume) |
+| Testing | pytest, 282 tests (backend); `npm run build` type-checks the frontend |
 
 ## Limitations
 

@@ -1,12 +1,13 @@
 # Single consolidated compose file for the whole stack: warehouse
-# seeding, the FastAPI backend + Streamlit interface, the monitoring
-# dashboard, and Kestra orchestration (the Day 19 nightly refresh flow).
+# seeding, the FastAPI backend (which also serves the built React SPA -
+# both the Ask and Monitoring pages live there now, see src/app/api.py),
+# and Kestra orchestration (the Day 19 nightly refresh flow).
 #
-# All app services share one image (built once, tagged explicitly so
+# Both app services share one image (built once, tagged explicitly so
 # the Kestra flow's containerImage reference matches) and one named
 # volume (warehouse_data) at /app/data, so a warehouse/index refresh —
 # whether from `seed` or from Kestra's nightly flow — is immediately
-# visible to api/ui/monitoring without a restart.
+# visible to api without a restart.
 
 services:
   seed:
@@ -27,6 +28,7 @@ services:
     environment:
       - DUCKDB_PATH=/app/data/warehouse.duckdb
       - TRACE_LOG_PATH=/app/data/telemetry/traces.jsonl
+      - TELEMETRY_DB_PATH=/app/data/telemetry.duckdb
       - AGENT_CHAT_BACKEND=${AGENT_CHAT_BACKEND:-ollama}
       # Deliberately not ${OLLAMA_BASE_URL:-...}: compose auto-loads the
       # repo's .env for variable substitution, and that file's
@@ -47,31 +49,6 @@ services:
     depends_on:
       seed:
         condition: service_completed_successfully
-
-  ui:
-    build: .
-    image: warehouse-analytics-copilot:latest
-    volumes:
-      - warehouse_data:/app/data
-    environment:
-      - API_BASE_URL=http://api:8000
-    command: ["streamlit", "run", "src/app/ui.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
-    ports:
-      - "8501:8501"
-    depends_on:
-      - api
-
-  monitoring:
-    build: .
-    image: warehouse-analytics-copilot:latest
-    volumes:
-      - warehouse_data:/app/data
-    environment:
-      - TELEMETRY_DB_PATH=/app/data/telemetry.duckdb
-      - TRACE_LOG_PATH=/app/data/telemetry/traces.jsonl
-    command: ["streamlit", "run", "monitoring/dashboard.py", "--server.port", "8502", "--server.address", "0.0.0.0"]
-    ports:
-      - "8502:8502"
 
   # Kestra's own metadata store (executions, flows, triggers) - the
   # standard backend for `server standalone` (unlike the embedded H2
