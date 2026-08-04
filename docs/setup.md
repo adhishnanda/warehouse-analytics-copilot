@@ -56,7 +56,7 @@ Node stage before the final Python stage) and brings up four services:
 | `seed` | Generates the TPC-H star schema and builds the retrieval indices, then exits | none |
 | `api` | FastAPI backend, and serves the built React frontend (Ask + Monitoring pages) as static assets on the same port | `8000` |
 | `kestra-db` | Postgres, Kestra's metadata store | internal only |
-| `kestra` | Kestra orchestrator (`server standalone`), runs the nightly refresh flow | `8081` |
+| `kestra` | Kestra orchestrator (`server standalone`), runs the nightly refresh flow and the daily synthetic-traffic flow | `8081` |
 
 `api` shares one named volume (`warehouse_data`) with `seed`, so the
 warehouse and indices `seed` builds are immediately visible to `api`,
@@ -74,9 +74,10 @@ Then open:
   pills), confirm you get an answer with an SQL disclosure
 - `http://localhost:8000/monitoring`: confirm the monitoring dashboard
   loads (it will be mostly empty until you've asked a few questions)
-- `http://localhost:8081`: Kestra's own UI; the nightly refresh flow
-  (`orchestration/kestra/refresh_flow.yml`) should already be visible
-  under Flows
+- `http://localhost:8081`: Kestra's own UI; both flows
+  (`orchestration/kestra/refresh_flow.yml`,
+  `orchestration/kestra/synthetic_traffic_flow.yml`) should be visible
+  under Flows once imported (see the platform quirk on flow import below)
 
 By default, `api` uses the free local Ollama backend and answers
 `http://host.docker.internal:11434`. Ollama itself is **not**
@@ -147,13 +148,14 @@ path). To check the production-like single-port setup instead
 uv run pytest
 ```
 
-282 tests as of the last full run on this repo (`uv run pytest -q`),
+298 tests as of the last full run on this repo (`uv run pytest -q`),
 covering the warehouse schema, semantic layer and warehouse consistency,
 retrieval, reranking, query rewriting, agent guardrails and loop, the
 golden question set (every gold SQL statement is re-executed against the
 live warehouse on every test run), the API and monitoring endpoints,
 telemetry, the dlt pipeline, the monitoring dashboard's metric functions,
-the Kestra flow's structure, and the `docker-compose.yml` structure. A
+both Kestra flows' structure, the synthetic-traffic generator's sampling
+and feedback-simulation logic, and the `docker-compose.yml` structure. A
 handful of tests are conditionally skipped if Ollama or Docker isn't
 reachable in your environment; this is by design (see individual test
 files), not a failure. The frontend has no separate automated test suite
@@ -183,6 +185,23 @@ for each script (from real, measured API usage, not estimates) are
 disclosed in their respective `evaluation/results/*.md` reports; none
 exceeded a few cents.
 
+## Populating the monitoring dashboard
+
+`orchestration/kestra/synthetic_traffic_flow.yml` runs
+`scripts/generate_synthetic_traffic.py` once a day so the Monitoring page
+has ongoing activity between real sessions, rather than staying empty.
+Every trace it produces is a genuine agent execution against the real
+warehouse and the free local Ollama backend (never a paid model on its
+own); only the choice of questions (sampled from
+`evaluation/golden_questions.jsonl`) and simulated feedback votes are
+scripted. To generate a batch by hand instead of waiting for the
+schedule:
+
+```bash
+uv run python scripts/generate_synthetic_traffic.py       # 12 questions, default
+uv run python scripts/generate_synthetic_traffic.py 25    # or a custom count
+```
+
 ## Known platform quirks
 
 These were found and fixed by actually running the stack, not anticipated
@@ -205,3 +224,27 @@ debugging time.
   interpolation and dumps fully-resolved values. Use
   `docker compose config --quiet` to validate the file's syntax without
   this risk (that's what `tests/test_docker_compose.py`'s live test does).
+- **Importing flows into a running Kestra container needs its own CLI,
+  not curl.** `docker exec <kestra-container> sh /app/kestra flow
+  updates --no-delete <dir-inside-container> --server
+  http://localhost:8080` is the working invocation (copy the flow YAML
+  files in first with `docker cp orchestration/kestra
+  <container>:/tmp/kestra-flows`; note `/app/kestra` is a hybrid
+  sh/batch launcher, so it must be run as `sh /app/kestra ...`, not
+  executed directly, and Git Bash on Windows needs
+  `MSYS_NO_PATHCONV=1` prefixed to `docker exec`/`docker cp` calls with
+  Unix-style container paths, or it mangles them into host paths).
+  `kestra flow validate --local <file>` (no server round-trip) is a
+  reliable way to check a flow's syntax against the real schema even
+  when the step below isn't working.
+- **Open item: the `kestra/kestra:v1.3.30` image's REST API returns 401
+  on every endpoint even with `basic-auth.enabled: false` set**,
+  discovered live while adding `synthetic_traffic_flow.yml` - this blocks
+  the CLI import step above for both flows, not just the new one, so it
+  is a pre-existing environment gap rather than something specific to
+  the new flow (which separately validated cleanly against the schema).
+  Not resolved in that session: no default credentials, setup wizard, or
+  alternate config key were found within a reasonable timebox. If you hit
+  this, importing a flow through the Kestra UI directly
+  (`http://localhost:8081`, Flows -> Create) is the fallback until a real
+  fix is found.

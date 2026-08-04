@@ -254,13 +254,19 @@ tested logic drives the UI without being duplicated in TypeScript.
 
 ## Ingestion pipeline
 
-A Kestra flow (`orchestration/kestra/refresh_flow.yml`) reseeds the
-warehouse and rebuilds the retrieval indices, then loads new telemetry, on
-a nightly schedule (02:00). [Kestra](https://kestra.io) is an open-source
-workflow orchestrator; here it runs two sequential tasks in Docker
-containers built from this project's own image, sharing the same data
-volume the running app reads from, so a refresh is visible without a
-restart.
+Two Kestra flows, both running sequential tasks in Docker containers built
+from this project's own image, sharing the same data volume the running
+app reads from, so a refresh is visible without a restart:
+
+- `orchestration/kestra/refresh_flow.yml`: reseeds the warehouse and
+  rebuilds the retrieval indices, then loads new telemetry, nightly at
+  02:00.
+- `orchestration/kestra/synthetic_traffic_flow.yml`: runs a batch of
+  synthetic traffic (`scripts/generate_synthetic_traffic.py`) through the
+  real agent loop, then reloads telemetry the same way, daily at 06:00 -
+  see Monitoring below for why this exists.
+
+[Kestra](https://kestra.io) is an open-source workflow orchestrator.
 
 ## Monitoring
 
@@ -277,11 +283,15 @@ loads the raw per-request trace log into DuckDB tables:
 6. Top failure categories
 
 User feedback is collected via thumbs up/down in the UI, logged through
-the same trace pipeline. Demo telemetry used to exercise the dashboard
-(20 traces: 12 free `llama3` and 5 paid `gpt-4o-mini` scripted questions,
-plus 3 organic ones from manual testing) is demo-run data, not a formal
-evaluation result; the Evaluation section above is the source for
-accuracy and retrieval claims.
+the same trace pipeline. Demo telemetry used to originally exercise the
+dashboard (20 traces: 12 free `llama3` and 5 paid `gpt-4o-mini` scripted
+questions, plus 3 organic ones from manual testing) is demo-run data, not
+a formal evaluation result; the Evaluation section above is the source
+for accuracy and retrieval claims. The daily synthetic-traffic flow above
+adds roughly a dozen more real traces (plus simulated feedback) each day,
+using the same production agent loop and the free local Ollama backend,
+so the dashboard keeps showing activity between real sessions rather
+than sitting static.
 
 ## Guardrails
 
@@ -350,10 +360,10 @@ orchestration: [`docs/architecture.md`](docs/architecture.md).
 | LLM | Local Ollama (`llama3`) for development and the free evaluation arm; OpenAI `gpt-4o-mini` for the paid evaluation arm and the production default in the shipped system |
 | Agent orchestration | Function-calling-style tool composition plus a custom retry loop (`src/agent/`) |
 | Interface | FastAPI (backend, and serves the built frontend as static assets) + React/TypeScript/Vite, Tailwind, shadcn/ui, Recharts (frontend) |
-| Ingestion / orchestration | Kestra (nightly refresh flow), dlt (telemetry ingestion) |
+| Ingestion / orchestration | Kestra (nightly refresh + daily synthetic-traffic flows), dlt (telemetry ingestion) |
 | Monitoring | React dashboard, 6 charts, reading JSON from `/monitoring/*` (backed by dlt-loaded DuckDB tables) |
 | Containerization | Single `docker-compose.yml` (4 services, 1 shared image built via a multi-stage Dockerfile, 1 shared data volume) |
-| Testing | pytest, 282 tests (backend); `npm run build` type-checks the frontend |
+| Testing | pytest, 298 tests (backend); `npm run build` type-checks the frontend |
 
 ## Limitations
 

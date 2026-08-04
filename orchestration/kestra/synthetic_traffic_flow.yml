@@ -1,0 +1,45 @@
+id: warehouse_synthetic_traffic
+namespace: warehouse.analytics.copilot
+description: |
+  Generates a daily batch of synthetic traffic through the real agent
+  loop (scripts/generate_synthetic_traffic.py), so the monitoring
+  dashboard has ongoing activity between real sessions instead of
+  sitting empty, then reloads telemetry the same way the nightly
+  refresh flow does. Every trace is a genuine agent execution against
+  the real warehouse and the free local Ollama backend - only the
+  choice of questions (sampled from evaluation/golden_questions.jsonl)
+  and simulated feedback votes are scripted. Never uses a paid model,
+  per this project's cost-discipline rule. Runs in the project's own
+  Docker image against the warehouse_data named volume shared with the
+  api service, same as refresh_flow.yml.
+
+tasks:
+  - id: generate_traffic
+    type: io.kestra.plugin.scripts.shell.Commands
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+      volumes:
+        - "warehouse_data:/app/data"
+    containerImage: warehouse-analytics-copilot:latest
+    env:
+      # Same host-reachable override docker-compose.yml's api service
+      # uses - the default (localhost:11434) is only correct on the
+      # host, not inside this task's own container.
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+    commands:
+      - cd /app && uv run python scripts/generate_synthetic_traffic.py
+
+  - id: refresh_telemetry
+    type: io.kestra.plugin.scripts.shell.Commands
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+      volumes:
+        - "warehouse_data:/app/data"
+    containerImage: warehouse-analytics-copilot:latest
+    commands:
+      - cd /app && uv run python -m src.telemetry.dlt_pipeline
+
+triggers:
+  - id: daily
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 6 * * *"
