@@ -89,8 +89,17 @@ services:
             password: k3str4
         kestra:
           server:
+            # Kestra OSS made basic auth mandatory as of 0.24.0 - the
+            # `enabled` flag is now ignored, and an unconfigured instance
+            # instead serves a publicly-reachable first-run setup page
+            # until credentials are submitted there. Setting them here
+            # instead avoids that interactive step and keeps the instance
+            # protected from the moment it starts (same local-orchestration-
+            # credential pattern as kestra-db's Postgres password above -
+            # not a secret protecting real data, this is a local dev UI).
             basic-auth:
-              enabled: false
+              username: admin@kestra.io
+              password: k3str4-admin
           repository:
             type: postgres
           storage:

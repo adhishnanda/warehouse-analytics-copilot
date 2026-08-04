@@ -237,14 +237,27 @@ debugging time.
   `kestra flow validate --local <file>` (no server round-trip) is a
   reliable way to check a flow's syntax against the real schema even
   when the step below isn't working.
-- **Open item: the `kestra/kestra:v1.3.30` image's REST API returns 401
-  on every endpoint even with `basic-auth.enabled: false` set**,
-  discovered live while adding `synthetic_traffic_flow.yml` - this blocks
-  the CLI import step above for both flows, not just the new one, so it
-  is a pre-existing environment gap rather than something specific to
-  the new flow (which separately validated cleanly against the schema).
-  Not resolved in that session: no default credentials, setup wizard, or
-  alternate config key were found within a reasonable timebox. If you hit
-  this, importing a flow through the Kestra UI directly
-  (`http://localhost:8081`, Flows -> Create) is the fallback until a real
-  fix is found.
+- **Kestra OSS made basic auth mandatory as of 0.24.0 - the
+  `basic-auth.enabled` config key is now ignored**, so
+  `docker-compose.yml`'s original `enabled: false` setting did nothing;
+  every API call (including ones that should be public, like the setup
+  page's own submission endpoint) returned 401 regardless. Confirmed
+  against Kestra's own migration/troubleshooting docs, not guessed:
+  credentials must be set explicitly under `kestra.server.basic-auth`
+  (`username`/`password`), which `docker-compose.yml` now does (same
+  local-orchestration-credential pattern as `kestra-db`'s Postgres
+  password already in that file - not a secret protecting real data).
+- **Open item: even with real credentials configured, and a completely
+  fresh `kestra_db_data`/`kestra_storage` volume, every `/api/v1/*`
+  endpoint still returns 401** for this exact `kestra/kestra:v1.3.30`
+  image - confirmed this isn't specific to the new flow (the
+  already-working `refresh_flow.yml` hits the identical wall), and isn't
+  a leftover-state issue (reproduced from a wiped metadata store). Not
+  resolved within a reasonable timebox: no browser was available in that
+  session to check whether the interactive `/ui/main/setup` flow
+  succeeds where the API does (the SPA shell itself always returns 200
+  regardless of backend auth state, so hitting that URL with curl proves
+  nothing). If you hit this, try completing setup through the UI in a
+  real browser first (`http://localhost:8081`); if that also fails,
+  importing a flow via Flows -> Create in the UI is the fallback once
+  you're past login.
