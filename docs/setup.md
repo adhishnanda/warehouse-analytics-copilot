@@ -142,23 +142,80 @@ path). To check the production-like single-port setup instead
 (`http://localhost:8000` serving everything), build the frontend first:
 `cd frontend && npm run build`, then just run the `uvicorn` command above.
 
+## Deploying to Render
+
+`render.yaml` deploys this repo's own `Dockerfile` as a single public web
+service on [Render](https://render.com)'s free tier - the optional cloud
+deployment item from `PROJECT_PLAN.md` Section 3. This is a Blueprint
+(declarative) deploy: Render reads `render.yaml` from the repo and
+provisions the service from it, rather than you clicking through manual
+service configuration.
+
+**What Claude Code (or any agent) cannot do for you:** creating a Render
+account and connecting it to your GitHub account both require you to
+authenticate interactively in Render's own UI - no CLI or API token can
+do this on your behalf, and it shouldn't. The steps below are yours to
+run.
+
+1. Push this repo to GitHub if you haven't already (it already is, as of
+   this project's own history).
+2. At [dashboard.render.com](https://dashboard.render.com), sign up or
+   log in, then **New > Blueprint**, and connect the
+   `warehouse-analytics-copilot` GitHub repo. Render detects
+   `render.yaml` automatically.
+3. When prompted for the `OPENAI_API_KEY` environment variable (marked
+   `sync: false` in `render.yaml`, so Render asks for it rather than
+   reading it from any committed file), paste your key directly into
+   Render's dashboard field. Never put it in `.env`, `render.yaml`, or
+   any file you commit.
+4. Deploy. The first build seeds the warehouse and builds retrieval
+   indices as part of container startup (the Dockerfile's default `CMD`
+   - see the comment there), so the first request after a cold start
+   takes longer than usual; subsequent requests within the same running
+   instance are normal speed.
+5. Verify: `https://<your-service>.onrender.com/health` should return
+   `{"status":"ok"}`, then open the root URL for the Ask and Monitoring
+   pages.
+
+**Deliberate scope limits of this deploy, not oversights:**
+
+- **No Kestra.** Kestra's Docker task runner needs a Docker socket, which
+  a Render web service (or most PaaS containers) doesn't provide. The
+  online deployment is the FastAPI + React app only; both Kestra flows
+  (nightly refresh, daily synthetic traffic) remain a local/Docker-Compose
+  concept, not something running against the public instance.
+- **Telemetry doesn't persist.** Render's free tier gives an ephemeral
+  filesystem - `data/telemetry/traces.jsonl` and `data/telemetry.duckdb`
+  are wiped on every restart or redeploy, so the Monitoring page resets
+  to empty rather than accumulating history the way the local Kestra
+  setup does. Fixing this would need a paid persistent disk or an
+  external database; not justified for a portfolio demo, so it's
+  disclosed here instead of silently broken.
+- **The paid backend, with a cap.** `AGENT_CHAT_BACKEND=openai` is set in
+  `render.yaml` because local Ollama isn't realistically deployable on a
+  free-tier host. `MAX_DAILY_QUERIES` (default 50, `src/app/api.py`'s
+  `_check_rate_limit`) bounds the resulting per-query cost - once the
+  daily cap is hit, `/ask` returns `429` until the next UTC day, rather
+  than staying open-ended for an anonymous public URL.
+
 ## Running the tests
 
 ```bash
 uv run pytest
 ```
 
-298 tests as of the last full run on this repo (`uv run pytest -q`),
+305 tests as of the last full run on this repo (`uv run pytest -q`),
 covering the warehouse schema, semantic layer and warehouse consistency,
 retrieval, reranking, query rewriting, agent guardrails and loop, the
 golden question set (every gold SQL statement is re-executed against the
-live warehouse on every test run), the API and monitoring endpoints,
-telemetry, the dlt pipeline, the monitoring dashboard's metric functions,
-both Kestra flows' structure, the synthetic-traffic generator's sampling
-and feedback-simulation logic, and the `docker-compose.yml` structure. A
-handful of tests are conditionally skipped if Ollama or Docker isn't
-reachable in your environment; this is by design (see individual test
-files), not a failure. The frontend has no separate automated test suite
+live warehouse on every test run), the API and monitoring endpoints
+(including the public-deploy rate limiter), telemetry, the dlt pipeline,
+the monitoring dashboard's metric functions, both Kestra flows'
+structure, the synthetic-traffic generator's sampling and
+feedback-simulation logic, `render.yaml`'s structure, and the
+`docker-compose.yml` structure. A handful of tests are conditionally
+skipped if Ollama or Docker isn't reachable in your environment; this is
+by design (see individual test files), not a failure. The frontend has no separate automated test suite
 yet - `npm run build` type-checks it, and every change to it in this
 project has been verified live in a real browser rather than left
 unverified (see `SESSION_LOG.md`).

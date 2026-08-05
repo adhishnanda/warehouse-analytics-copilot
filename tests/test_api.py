@@ -42,6 +42,14 @@ def isolate_trace_log(monkeypatch, tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def reset_rate_limit(monkeypatch):
+    """The rate limiter's counter is process-wide, module-level state -
+    reset it per test so one test's call count can't leak into another's.
+    """
+    monkeypatch.setattr(api, "_rate_limit_state", {"date": None, "count": 0})
+
+
+@pytest.fixture(autouse=True)
 def default_chat_response(monkeypatch):
     """Every test gets a working SQL reply unless it overrides chat_with_usage itself."""
     monkeypatch.setattr(
@@ -117,3 +125,30 @@ def test_ask_reports_failure_when_guardrail_rejects_every_attempt(client, monkey
     assert body["error"] is not None
     assert body["row_count"] == 0
     assert body["chart_kind"] == "table"
+
+
+def test_ask_is_never_rate_limited_on_the_free_backend(client, monkeypatch):
+    monkeypatch.setattr(api, "AGENT_CHAT_BACKEND", "ollama")
+    monkeypatch.setattr(api, "MAX_DAILY_QUERIES", 1)
+
+    for _ in range(3):
+        response = client.post("/ask", json={"question": "how many orders"})
+        assert response.status_code == 200
+
+
+def test_ask_is_rate_limited_on_the_paid_backend_once_the_daily_cap_is_hit(client, monkeypatch):
+    monkeypatch.setattr(api, "AGENT_CHAT_BACKEND", "openai")
+    monkeypatch.setattr(api, "MAX_DAILY_QUERIES", 2)
+    monkeypatch.setattr(
+        api,
+        "chat_openai",
+        lambda *a, **k: ChatCompletion(content="```sql\nSELECT COUNT(*) FROM fact_orders\n```", usage={}),
+    )
+
+    assert client.post("/ask", json={"question": "q1"}).status_code == 200
+    assert client.post("/ask", json={"question": "q2"}).status_code == 200
+
+    response = client.post("/ask", json={"question": "q3"})
+
+    assert response.status_code == 429
+    assert "Daily query limit" in response.json()["detail"]

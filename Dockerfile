@@ -31,4 +31,11 @@ COPY --from=frontend-build /frontend/dist ./frontend/dist
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-CMD ["python", "data/seed_warehouse.py"]
+# Default single-process entrypoint: seed the warehouse, build the
+# retrieval indices, then serve. docker-compose.yml's seed/api services
+# override this explicitly per-service and don't depend on it - this
+# default exists for a single-container run outside compose (Render's
+# Blueprint deploy, or a plain `docker run`). ${PORT:-8000} picks up a
+# host's dynamically assigned port when set (Render always sets one),
+# falling back to 8000 otherwise.
+CMD ["sh", "-c", "python scripts/seed_and_index.py && uvicorn src.app.api:app --host 0.0.0.0 --port ${PORT:-8000}"]

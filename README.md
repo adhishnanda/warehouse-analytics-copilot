@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-282%20passing-brightgreen.svg)](docs/setup.md#running-the-tests)
+[![Tests](https://img.shields.io/badge/tests-305%20passing-brightgreen.svg)](docs/setup.md#running-the-tests)
 
 Agentic text-to-SQL over a governed semantic layer. Ask a business
 question in plain English and get back a number, the SQL that produced
@@ -24,6 +24,7 @@ portfolio project, not a production system. See [Limitations](#limitations).
 - [Monitoring](#monitoring)
 - [Guardrails](#guardrails)
 - [Setup](#setup)
+- [Deployment](#deployment)
 - [Usage](#usage)
 - [Architecture](#architecture)
 - [Tech stack](#tech-stack)
@@ -340,6 +341,22 @@ Python package, `python:3.13.7-slim-bookworm` plus `uv==0.11.20` in the
 `Dockerfile`, `kestra/kestra:v1.3.30` and `postgres:15.18` in
 `docker-compose.yml`.
 
+## Deployment
+
+`render.yaml` deploys this repo's own `Dockerfile` as a single public web
+service on [Render](https://render.com)'s free tier, the optional cloud
+deployment item from the LLM Zoomcamp rubric (see
+[`PROJECT_PLAN.md`](PROJECT_PLAN.md) Section 3). Local Ollama isn't
+realistically deployable on a typical free-tier host, so the public
+instance runs on `gpt-4o-mini` instead, bounded by a daily query cap
+(`MAX_DAILY_QUERIES`, default 50) so an anonymous visitor can't run up an
+open-ended bill. Kestra orchestration stays local-only - its Docker task
+runner needs a Docker socket a PaaS container doesn't provide - and the
+free tier's filesystem is ephemeral, so the Monitoring page's telemetry
+resets on every restart rather than accumulating indefinitely. Both
+tradeoffs are deliberate scope decisions for a portfolio demo, not
+oversights. Full steps: [`docs/setup.md`](docs/setup.md#deploying-to-render).
+
 ## Usage
 
 Example questions, what each answer shape looks like, and how to read the
@@ -363,7 +380,7 @@ orchestration: [`docs/architecture.md`](docs/architecture.md).
 | Ingestion / orchestration | Kestra (nightly refresh + daily synthetic-traffic flows), dlt (telemetry ingestion) |
 | Monitoring | React dashboard, 6 charts, reading JSON from `/monitoring/*` (backed by dlt-loaded DuckDB tables) |
 | Containerization | Single `docker-compose.yml` (4 services, 1 shared image built via a multi-stage Dockerfile, 1 shared data volume) |
-| Testing | pytest, 298 tests (backend); `npm run build` type-checks the frontend |
+| Testing | pytest, 305 tests (backend); `npm run build` type-checks the frontend |
 
 ## Limitations
 

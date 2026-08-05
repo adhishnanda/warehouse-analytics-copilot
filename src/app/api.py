@@ -27,7 +27,7 @@ from pydantic import BaseModel
 from src.agent.loop import answer_question
 from src.app.chart import pick_chart_kind
 from src.app.monitoring import router as monitoring_router
-from src.config import AGENT_CHAT_BACKEND, OLLAMA_MODEL, OPENAI_MODEL, REPO_ROOT, TRACE_LOG_PATH
+from src.config import AGENT_CHAT_BACKEND, MAX_DAILY_QUERIES, OLLAMA_MODEL, OPENAI_MODEL, REPO_ROOT, TRACE_LOG_PATH
 from src.db.duckdb_client import get_connection
 from src.llm_client import chat_openai, chat_with_usage
 from src.retrieval.reranker import Reranker
@@ -61,6 +61,31 @@ def _build_chat_fn(backend: str):
 
 def _model_name() -> str:
     return OPENAI_MODEL if AGENT_CHAT_BACKEND == "openai" else OLLAMA_MODEL
+
+
+# Module-level, not per-request: a single process-wide counter is enough
+# for a single-instance deploy (Render's free tier runs exactly one), and
+# resets naturally on any restart, which is an acceptable, disclosed
+# limitation for a portfolio demo's cost guard, not a strict SLA.
+_rate_limit_state = {"date": None, "count": 0}
+
+
+def _check_rate_limit() -> None:
+    """Raises 429 once MAX_DAILY_QUERIES is hit, but only for the paid
+    backend — local Ollama development is never limited.
+    """
+    if AGENT_CHAT_BACKEND != "openai":
+        return
+    today = datetime.date.today().isoformat()
+    if _rate_limit_state["date"] != today:
+        _rate_limit_state["date"] = today
+        _rate_limit_state["count"] = 0
+    if _rate_limit_state["count"] >= MAX_DAILY_QUERIES:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Daily query limit ({MAX_DAILY_QUERIES}) reached for the paid backend. Try again tomorrow.",
+        )
+    _rate_limit_state["count"] += 1
 
 
 def _jsonable(value):
@@ -116,6 +141,8 @@ def health() -> dict:
 def ask(request: AskRequest) -> AskResponse:
     if not request.question.strip():
         raise HTTPException(status_code=400, detail="question must not be empty")
+
+    _check_rate_limit()
 
     chat_fn, usage_records = _build_chat_fn(AGENT_CHAT_BACKEND)
     model = _model_name()

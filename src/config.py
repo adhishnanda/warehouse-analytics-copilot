@@ -35,3 +35,10 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+
+# Cloud deployment bonus (PROJECT_PLAN.md Section 3): only meaningful when
+# AGENT_CHAT_BACKEND=openai — a public deploy on the paid backend needs a
+# bound on open-ended per-query cost, since local Ollama (free) can't
+# reasonably run on a typical free-tier host. No effect on the free
+# backend, so normal local development is never rate limited.
+MAX_DAILY_QUERIES = int(os.environ.get("MAX_DAILY_QUERIES", "50"))

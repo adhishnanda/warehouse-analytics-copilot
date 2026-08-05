@@ -1,0 +1,28 @@
+# Render Blueprint: deploys this repo's existing Dockerfile as a single
+# web service. Not part of docker-compose.yml's four-service local stack
+# (seed/api/kestra-db/kestra) - Kestra's Docker task runner needs a
+# Docker socket a typical PaaS container doesn't provide, so orchestration
+# stays local-only. Online, the image's own default CMD (see Dockerfile)
+# seeds the warehouse and builds retrieval indices at container start,
+# then serves the API + built React frontend as one process.
+#
+# The free tier's filesystem is ephemeral: telemetry (data/telemetry/,
+# data/telemetry.duckdb) does not persist across restarts or redeploys,
+# so the Monitoring page resets to empty each time the service restarts.
+# Documented as a known tradeoff in docs/setup.md, not silently hidden -
+# fixing it would need a paid persistent disk or an external database,
+# neither justified for a portfolio demo.
+services:
+  - name: warehouse-analytics-copilot
+    type: web
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: AGENT_CHAT_BACKEND
+        value: openai
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: MAX_DAILY_QUERIES
+        value: "50"
