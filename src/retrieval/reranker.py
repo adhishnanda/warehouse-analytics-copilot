@@ -8,9 +8,12 @@ as a second pass over a small candidate set, not as the first-pass search.
 
 from __future__ import annotations
 
-from sentence_transformers import CrossEncoder
+from typing import TYPE_CHECKING
 
 from src.retrieval.indexer import Document
+
+if TYPE_CHECKING:
+    from sentence_transformers import CrossEncoder
 
 RERANKER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
@@ -23,6 +26,11 @@ class Reranker:
     @property
     def model(self) -> CrossEncoder:
         if self._model is None:
+            # Imported here, not at module level - see the matching comment
+            # in indexer.py's build_index. Keeps torch out of process
+            # startup entirely; it's only paid for on the first real rerank.
+            from sentence_transformers import CrossEncoder
+
             self._model = CrossEncoder(self.model_name)
         return self._model
 

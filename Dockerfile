@@ -17,6 +17,14 @@ RUN pip install --no-cache-dir uv==0.11.20
 # error.
 ENV UV_HTTP_TIMEOUT=300
 
+# Python buffers stdout/stderr by default when it isn't attached to a
+# terminal, which is exactly the case for a container's log stream - a
+# slow or crashing startup can go completely silent until the process
+# exits or a host times it out, rather than showing what's actually
+# happening. Unbuffered output makes every print/log line show up in
+# platform logs (e.g. Render's) immediately.
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
 COPY pyproject.toml uv.lock ./

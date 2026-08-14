@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
-from sentence_transformers import SentenceTransformer
 
 from src.retrieval.indexer import INDEX_PATH, Document, load_index, tokenize
+
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
 
 
 def _normalize(scores: np.ndarray) -> np.ndarray:
@@ -31,6 +35,11 @@ class Retriever:
     @property
     def model(self) -> SentenceTransformer:
         if self._model is None:
+            # Imported here, not at module level - see the matching comment
+            # in indexer.py's build_index. Keeps torch out of process
+            # startup entirely; it's only paid for on the first real search.
+            from sentence_transformers import SentenceTransformer
+
             self._model = SentenceTransformer(self.index["embedding_model_name"])
         return self._model
 

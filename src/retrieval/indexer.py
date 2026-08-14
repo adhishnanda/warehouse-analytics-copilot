@@ -12,7 +12,6 @@ from pathlib import Path
 import numpy as np
 import yaml
 from rank_bm25 import BM25Okapi
-from sentence_transformers import SentenceTransformer
 
 from src.config import REPO_ROOT, SEMANTIC_LAYER_DIR
 
@@ -73,6 +72,15 @@ def tokenize(text: str) -> list[str]:
 
 
 def build_index(documents: list[Document] | None = None) -> dict:
+    # Imported here, not at module level: this pulls in sentence_transformers
+    # and torch, which is fine at index-build time (a one-off script run) but
+    # would otherwise make every module that imports Document/load_index/
+    # tokenize from here (retriever.py, reranker.py, and transitively
+    # src/app/api.py) pay that import cost just to start up - the exact
+    # thing that stalled the app past Render's port-scan timeout before a
+    # port was ever bound.
+    from sentence_transformers import SentenceTransformer
+
     if documents is None:
         documents = load_documents()
 
