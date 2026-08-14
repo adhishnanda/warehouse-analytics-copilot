@@ -12,13 +12,29 @@
 # Documented as a known tradeoff in docs/setup.md, not silently hidden -
 # fixing it would need a paid persistent disk or an external database,
 # neither justified for a portfolio demo.
+#
+# Deliberately no healthCheckPath. With one set, Render requires the app
+# to return a real 2xx/3xx from that path within 5 seconds, and restarts
+# the instance after 60 consecutive seconds of failing that - but /ask
+# does real synchronous work (cold-loading sentence-transformers/torch
+# on the first query after a restart or free-tier spin-down, then a
+# gpt-4o-mini call), which routinely blocks the single worker past that
+# 5-second budget on this plan's throttled CPU. Every real query was
+# getting killed mid-request (visible as repeated "Instance failed: HTTP
+# health check failed (timed out after 5 seconds)" events, each one
+# racing the app's own cold-load and losing, then restarting into
+# another cold instance that hit the same wall on the next query - a
+# self-sustaining crash loop, confirmed live in the dashboard's Events
+# tab). Omitting healthCheckPath falls back to Render's default TCP
+# check (does the OS accept a connection on the port), which a busy but
+# alive single worker still satisfies, without requiring the app itself
+# to be free to respond.
 services:
   - name: warehouse-analytics-copilot
     type: web
     runtime: docker
     plan: free
     dockerfilePath: ./Dockerfile
-    healthCheckPath: /health
     envVars:
       - key: AGENT_CHAT_BACKEND
         value: openai

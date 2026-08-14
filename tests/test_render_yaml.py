@@ -36,8 +36,19 @@ def test_service_is_on_the_free_plan(service):
     assert service["plan"] == "free"
 
 
-def test_service_has_a_health_check(service):
-    assert service["healthCheckPath"] == "/health"
+def test_service_has_no_http_health_check(service):
+    """Regression check for a real incident: an HTTP healthCheckPath makes
+    Render require a genuine 2xx/3xx from that path within 5 seconds, and
+    restart the instance after 60 consecutive seconds of failing that. /ask
+    does real synchronous work (cold-loading sentence-transformers/torch,
+    then a gpt-4o-mini call) that routinely exceeds 5 seconds on this
+    plan's throttled CPU, which was observed live killing the instance
+    mid-request on every real query - a self-sustaining crash loop, since
+    each restart lost whatever the cold load had progressed and started
+    over. No healthCheckPath falls back to Render's default TCP check,
+    which a busy-but-alive single worker still satisfies.
+    """
+    assert "healthCheckPath" not in service
 
 
 def test_openai_api_key_is_never_committed_as_a_value(service):
