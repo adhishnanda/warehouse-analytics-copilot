@@ -12,7 +12,9 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from src.retrieval.indexer import INDEX_PATH
+import src.llm_client as llm_client
+from src.llm_client import ApiUnavailableError, ChatCompletion
+from src.retrieval.indexer import Document, INDEX_PATH
 from src.retrieval.reranker import Reranker
 from src.retrieval.retriever import Retriever
 
@@ -77,3 +79,73 @@ def test_rerank_can_reorder_hybrid_top_result(retriever, reranker):
     assert hybrid_top_id == "table:dim_supplier"
     assert rerank_top_id == "table:fact_orders"
     assert rerank_top_id != hybrid_top_id
+
+
+# --- backend="openai" (RETRIEVAL_BACKEND, see reranker.py's docstring) ---
+
+
+def _fake_candidates(n: int) -> list[tuple[Document, float]]:
+    return [
+        (Document(doc_id=f"doc:{i}", doc_type="table", name=f"doc{i}", text=f"text {i}"), 0.0)
+        for i in range(n)
+    ]
+
+
+def test_llm_rerank_reorders_by_returned_candidate_numbers(monkeypatch):
+    candidates = _fake_candidates(3)
+    monkeypatch.setattr(
+        llm_client, "chat_openai", lambda *_a, **_kw: ChatCompletion(content="3, 1, 2")
+    )
+
+    reranker = Reranker(backend="openai")
+    reranked = reranker.rerank("anything", candidates, k=3)
+
+    assert [doc.doc_id for doc, _score in reranked] == ["doc:2", "doc:0", "doc:1"]
+
+
+def test_llm_rerank_respects_k(monkeypatch):
+    candidates = _fake_candidates(5)
+    monkeypatch.setattr(
+        llm_client, "chat_openai", lambda *_a, **_kw: ChatCompletion(content="1, 2, 3, 4, 5")
+    )
+
+    reranker = Reranker(backend="openai")
+    reranked = reranker.rerank("anything", candidates, k=2)
+
+    assert len(reranked) == 2
+
+
+def test_llm_rerank_falls_back_to_original_order_on_unparseable_reply(monkeypatch):
+    candidates = _fake_candidates(3)
+    monkeypatch.setattr(llm_client, "chat_openai", lambda *_a, **_kw: ChatCompletion(content="no idea"))
+
+    reranker = Reranker(backend="openai")
+    reranked = reranker.rerank("anything", candidates, k=3)
+
+    assert [doc.doc_id for doc, _score in reranked] == [doc.doc_id for doc, _score in candidates]
+
+
+def test_llm_rerank_falls_back_to_original_order_when_api_unavailable(monkeypatch):
+    candidates = _fake_candidates(3)
+
+    def _raise(*_a, **_kw):
+        raise ApiUnavailableError("down")
+
+    monkeypatch.setattr(llm_client, "chat_openai", _raise)
+
+    reranker = Reranker(backend="openai")
+    reranked = reranker.rerank("anything", candidates, k=2)
+
+    assert [doc.doc_id for doc, _score in reranked] == [doc.doc_id for doc, _score in candidates[:2]]
+
+
+def test_llm_rerank_ignores_out_of_range_and_duplicate_numbers(monkeypatch):
+    candidates = _fake_candidates(2)
+    monkeypatch.setattr(
+        llm_client, "chat_openai", lambda *_a, **_kw: ChatCompletion(content="9, 1, 1, 2")
+    )
+
+    reranker = Reranker(backend="openai")
+    reranked = reranker.rerank("anything", candidates, k=2)
+
+    assert [doc.doc_id for doc, _score in reranked] == ["doc:0", "doc:1"]
