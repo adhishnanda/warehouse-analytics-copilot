@@ -191,6 +191,49 @@ def chat_openai_compatible(
     return ChatCompletion(content=content, usage=body.get("usage", {}))
 
 
+def embed_openai(
+    texts: list[str], model: str = "text-embedding-3-small", timeout: float = 30.0
+) -> list[list[float]]:
+    """Call OpenAI's embeddings endpoint for one or more texts in a single
+    request. Used by the deployed instance's API-backed retrieval path
+    (RETRIEVAL_BACKEND=openai, see src/retrieval/retriever.py) as a
+    torch-free alternative to the local sentence-transformers embedding
+    model.
+    """
+    payload = {"model": model, "input": texts}
+    request = urllib.request.Request(
+        "https://api.openai.com/v1/embeddings",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    def _do_request() -> dict:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read())
+
+    try:
+        body = _call_with_wall_clock_timeout(
+            _do_request,
+            timeout + _WALL_CLOCK_BUFFER_SECONDS,
+            ApiUnavailableError(
+                f"No response from OpenAI embeddings within {timeout + _WALL_CLOCK_BUFFER_SECONDS}s."
+            ),
+        )
+    except urllib.error.HTTPError as exc:
+        raise ApiUnavailableError(f"HTTP {exc.code}: {exc.read().decode(errors='replace')}") from exc
+    except (urllib.error.URLError, OSError, TimeoutError, json.JSONDecodeError) as exc:
+        raise ApiUnavailableError(str(exc)) from exc
+
+    # data isn't guaranteed to preserve input order per OpenAI's own docs -
+    # each item's index field is the source of truth.
+    ordered = sorted(body["data"], key=lambda item: item["index"])
+    return [item["embedding"] for item in ordered]
+
+
 def chat_groq(
     system_prompt: str, user_content: str, model: str = GROQ_MODEL, timeout: float = 60.0
 ) -> ChatCompletion:

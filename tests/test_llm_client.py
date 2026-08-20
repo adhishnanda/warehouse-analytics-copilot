@@ -1,5 +1,6 @@
 """Tests for the shared chat-completion clients: Ollama, Groq, OpenAI."""
 
+import json
 import sys
 import time
 import urllib.error
@@ -11,7 +12,15 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.config import GROQ_API_KEY, OLLAMA_BASE_URL, OPENAI_API_KEY
 from src import llm_client
-from src.llm_client import ApiUnavailableError, ChatCompletion, OllamaUnavailableError, chat, chat_groq, chat_openai
+from src.llm_client import (
+    ApiUnavailableError,
+    ChatCompletion,
+    OllamaUnavailableError,
+    chat,
+    chat_groq,
+    chat_openai,
+    embed_openai,
+)
 
 
 def _ollama_reachable() -> bool:
@@ -87,3 +96,53 @@ def test_chat_openai_returns_nonempty_reply():
     assert isinstance(result, ChatCompletion)
     assert result.content.strip()
     assert result.usage.get("total_tokens", 0) > 0
+
+
+def test_embed_openai_raises_on_bad_key(monkeypatch):
+    monkeypatch.setattr(llm_client, "OPENAI_API_KEY", "invalid-key")
+    with pytest.raises(ApiUnavailableError):
+        embed_openai(["hello"], timeout=10.0)
+
+
+def test_embed_openai_reorders_by_index_field(monkeypatch):
+    """OpenAI's own docs say data isn't guaranteed to preserve input
+    order - each item's index is the source of truth. Simulates a
+    shuffled response to check embed_openai actually reorders rather
+    than trusting array position.
+    """
+
+    class FakeResponse:
+        def __init__(self, body: bytes):
+            self._body = body
+
+        def read(self):
+            return self._body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    body = json.dumps(
+        {
+            "data": [
+                {"index": 1, "embedding": [0.0, 1.0]},
+                {"index": 0, "embedding": [1.0, 0.0]},
+            ]
+        }
+    ).encode("utf-8")
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *_a, **_k: FakeResponse(body))
+
+    vectors = embed_openai(["first", "second"])
+
+    assert vectors == [[1.0, 0.0], [0.0, 1.0]]
+
+
+@requires_openai_key
+def test_embed_openai_returns_real_vectors():
+    vectors = embed_openai(["revenue by region", "customer churn"])
+    assert len(vectors) == 2
+    assert len(vectors[0]) > 0
+    assert vectors[0] != vectors[1]
