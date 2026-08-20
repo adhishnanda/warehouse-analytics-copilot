@@ -13,6 +13,8 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import src.llm_client as llm_client
+from src.config import OPENAI_API_KEY
 from src.retrieval.indexer import INDEX_PATH, build_index, load_documents, save_index
 from src.retrieval.retriever import Retriever
 
@@ -20,6 +22,7 @@ pytestmark = pytest.mark.skipif(
     not INDEX_PATH.exists(),
     reason="semantic layer index not built yet — run python -m src.retrieval.indexer",
 )
+requires_openai_key = pytest.mark.skipif(not OPENAI_API_KEY, reason="OPENAI_API_KEY not set")
 
 
 @pytest.fixture(scope="module")
@@ -91,3 +94,43 @@ def test_build_index_is_reproducible_in_document_count(tmp_path):
     saved_path = tmp_path / "index.pkl"
     save_index(index, path=saved_path)
     assert saved_path.exists()
+
+
+# --- backend="openai" (RETRIEVAL_BACKEND, see retriever.py's docstring) ---
+
+
+def test_openai_backend_computes_corpus_embeddings_once(monkeypatch):
+    calls = {"n": 0}
+
+    def fake_embed(texts, model="text-embedding-3-small", timeout=30.0):
+        calls["n"] += 1
+        return [[float(i), 1.0] for i in range(len(texts))]
+
+    monkeypatch.setattr(llm_client, "embed_openai", fake_embed)
+
+    retriever = Retriever(backend="openai")
+    retriever.vector_search("revenue", k=3)
+    retriever.vector_search("orders", k=3)
+
+    # One call embeds the whole corpus, cached after that; one more call
+    # per query search - not eleven calls per search.
+    assert calls["n"] == 3
+
+
+def test_openai_backend_returns_k_results(monkeypatch):
+    monkeypatch.setattr(llm_client, "embed_openai", lambda texts, **_kw: [[1.0, 0.0] for _ in texts])
+
+    retriever = Retriever(backend="openai")
+    results = retriever.hybrid_search("revenue", k=4)
+    assert len(results) == 4
+
+
+@requires_openai_key
+def test_openai_backend_finds_paraphrased_match_for_real():
+    # Same paraphrase case test_vector_search_finds_paraphrased_match uses
+    # for the local backend - confirms the API-backed swap isn't just
+    # structurally correct but actually finds the right document.
+    retriever = Retriever(backend="openai")
+    results = retriever.vector_search("how much money have we brought in overall", k=3)
+    top_ids = [doc.doc_id for doc, _score in results]
+    assert "metric:total_revenue" in top_ids
