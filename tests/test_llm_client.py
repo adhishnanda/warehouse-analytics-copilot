@@ -1,6 +1,7 @@
 """Tests for the shared chat-completion clients: Ollama, Groq, OpenAI."""
 
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -39,6 +40,29 @@ def test_chat_returns_nonempty_reply():
     reply = chat("You are a terse assistant.", "Reply with exactly one word.")
     assert isinstance(reply, str)
     assert reply.strip()
+
+
+def test_chat_raises_after_wall_clock_timeout_when_urlopen_hangs(monkeypatch):
+    """Simulates the real failure this guards against: something before
+    urlopen's own timeout= can apply (a stuck DNS resolution, in
+    practice) stalls the call well past its stated timeout. Without the
+    wall-clock backstop this would hang for as long as _hangs_forever
+    sleeps; with it, chat() must still return control within roughly
+    timeout + the (shrunk, for test speed) buffer.
+    """
+    monkeypatch.setattr(llm_client, "_WALL_CLOCK_BUFFER_SECONDS", 0.2)
+
+    def _hangs_forever(*_args, **_kwargs):
+        time.sleep(30)
+
+    monkeypatch.setattr(urllib.request, "urlopen", _hangs_forever)
+
+    start = time.monotonic()
+    with pytest.raises(OllamaUnavailableError):
+        chat("system", "user", timeout=0.3, model="llama3")
+    elapsed = time.monotonic() - start
+
+    assert elapsed < 5.0
 
 
 def test_chat_openai_compatible_raises_on_bad_key():
