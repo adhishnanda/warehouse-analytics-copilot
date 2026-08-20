@@ -125,6 +125,27 @@ def test_openai_backend_returns_k_results(monkeypatch):
     assert len(results) == 4
 
 
+def test_openai_backend_falls_back_to_keyword_ranking_when_api_unavailable(monkeypatch):
+    """Reproduces the live failure this guards against: an unhandled
+    ApiUnavailableError (e.g. an invalid or revoked API key) from the
+    embeddings call used to crash the whole /ask request with a 500
+    instead of degrading gracefully - see SESSION_LOG.md.
+    """
+
+    def _raise(*_a, **_kw):
+        raise llm_client.ApiUnavailableError("bad key")
+
+    monkeypatch.setattr(llm_client, "embed_openai", _raise)
+
+    retriever = Retriever(backend="openai")
+    results = retriever.hybrid_search("repeat customer rate", k=3)
+
+    # Falls back to pure BM25 ranking rather than raising - same
+    # top match the keyword-only test for this query already expects.
+    top_ids = [doc.doc_id for doc, _score in results]
+    assert "metric:repeat_customer_rate" in top_ids
+
+
 @requires_openai_key
 def test_openai_backend_finds_paraphrased_match_for_real():
     # Same paraphrase case test_vector_search_finds_paraphrased_match uses

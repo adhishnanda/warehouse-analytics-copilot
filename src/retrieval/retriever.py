@@ -83,9 +83,21 @@ class Retriever:
 
     def _vector_scores(self, query: str) -> np.ndarray:
         if self.backend == "openai":
-            query_embedding = self._openai_embed([query])[0]
-        else:
-            query_embedding = self.model.encode([query], normalize_embeddings=True)[0]
+            from src.llm_client import ApiUnavailableError
+
+            try:
+                query_embedding = self._openai_embed([query])[0]
+                corpus_embeddings = self._corpus_embeddings()
+            except ApiUnavailableError:
+                # Fail open, the same way rewrite_query and the LLM
+                # reranker already do: retrieval degrades to keyword-only
+                # (BM25) ranking rather than crashing the whole /ask
+                # request on an API hiccup - see hybrid_search/_normalize,
+                # an all-zero vector score contributes nothing to the mix.
+                return np.zeros(len(self.documents))
+            return corpus_embeddings @ query_embedding
+
+        query_embedding = self.model.encode([query], normalize_embeddings=True)[0]
         return self._corpus_embeddings() @ query_embedding
 
     def _top_k(self, scores: np.ndarray, k: int) -> list[tuple[Document, float]]:
