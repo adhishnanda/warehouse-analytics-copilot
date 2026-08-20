@@ -36,6 +36,16 @@ GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 
+# Retrieval backend for the deployed instance: local sentence-transformers
+# is what the retrieval evaluation (PROJECT_PLAN.md Section 7) was measured
+# against and stays the default everywhere. RETRIEVAL_BACKEND=openai swaps
+# embeddings and reranking to API calls instead (see src/retrieval/
+# retriever.py and reranker.py) - used only on the public Render deploy,
+# whose free tier gives this service 0.15 CPU; the local embedding/rerank
+# models alone were observed to starve that budget for minutes on a single
+# request. See SESSION_LOG.md.
+RETRIEVAL_BACKEND = os.environ.get("RETRIEVAL_BACKEND", "local")
+
 # Cloud deployment bonus (PROJECT_PLAN.md Section 3): only meaningful when
 # AGENT_CHAT_BACKEND=openai — a public deploy on the paid backend needs a
 # bound on open-ended per-query cost, since local Ollama (free) can't

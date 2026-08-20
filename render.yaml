@@ -29,6 +29,18 @@
 # check (does the OS accept a connection on the port), which a busy but
 # alive single worker still satisfies, without requiring the app itself
 # to be free to respond.
+#
+# RETRIEVAL_BACKEND=openai: this plan's CPU limit is 0.15 of a core (see
+# Settings on the Render dashboard). Loading the local embedding and
+# cross-encoder reranker models alone was observed to starve that budget
+# so completely that Render's own port scanner gave up on the instance
+# for over a minute on a single request - not a timeout, a genuine
+# resource ceiling no amount of code-level timeout tuning can fix.
+# Swapping retrieval to OpenAI's embeddings API and an LLM-based rerank
+# (src/retrieval/retriever.py, reranker.py) removes torch from the
+# request path entirely for this instance; the local, cross-encoder
+# version is unchanged and is what the retrieval evaluation in
+# PROJECT_PLAN.md Section 7 was actually measured against.
 services:
   - name: warehouse-analytics-copilot
     type: web
@@ -37,6 +49,8 @@ services:
     dockerfilePath: ./Dockerfile
     envVars:
       - key: AGENT_CHAT_BACKEND
+        value: openai
+      - key: RETRIEVAL_BACKEND
         value: openai
       - key: OPENAI_API_KEY
         sync: false

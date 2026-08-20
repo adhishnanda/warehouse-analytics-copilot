@@ -27,7 +27,15 @@ from pydantic import BaseModel
 from src.agent.loop import answer_question
 from src.app.chart import pick_chart_kind
 from src.app.monitoring import router as monitoring_router
-from src.config import AGENT_CHAT_BACKEND, MAX_DAILY_QUERIES, OLLAMA_MODEL, OPENAI_MODEL, REPO_ROOT, TRACE_LOG_PATH
+from src.config import (
+    AGENT_CHAT_BACKEND,
+    MAX_DAILY_QUERIES,
+    OLLAMA_MODEL,
+    OPENAI_MODEL,
+    REPO_ROOT,
+    RETRIEVAL_BACKEND,
+    TRACE_LOG_PATH,
+)
 from src.db.duckdb_client import get_connection
 from src.llm_client import chat_openai, chat_with_usage
 from src.retrieval.reranker import Reranker
@@ -99,8 +107,8 @@ def _jsonable(value):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.con = get_connection()
-    app.state.retriever = Retriever()
-    app.state.reranker = Reranker()
+    app.state.retriever = Retriever(backend=RETRIEVAL_BACKEND)
+    app.state.reranker = Reranker(backend=RETRIEVAL_BACKEND)
     yield
     app.state.con.close()
 
