@@ -3,6 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](pyproject.toml)
 [![Tests](https://img.shields.io/badge/tests-310%20passing-brightgreen.svg)](docs/setup.md#running-the-tests)
+[![Docker Compose](https://img.shields.io/badge/docker-compose-2496ED.svg)](docker-compose.yml)
 
 Agentic text-to-SQL over a governed semantic layer. Ask a business
 question in plain English and get back a number, the SQL that produced
@@ -12,8 +13,23 @@ rather than a raw, ungoverned schema dump.
 This is the capstone project for DataTalks.Club's **LLM Zoomcamp**. It is a
 portfolio project, not a production system. See [Limitations](#limitations).
 
+### At a glance
+
+| | |
+|---|---|
+| **Dataset** | TPC-H, scale factor 0.1, 600,572 order lines across a 6-table star schema |
+| **Retrieval winner** | Hybrid search + cross-encoder rerank: 1.000 hit rate, 0.758 MRR @ k=5 |
+| **LLM winner** | `gpt-4o-mini`, schema-grounded prompt: 0.880 execution accuracy on 50 golden questions |
+| **Headline result** | Retrieval grounding lifts metric-definition accuracy from 0.500 to 1.000 (`gpt-4o-mini`) and 0.300 to 0.800 (`llama3`) |
+| **Guardrails** | Read-only connection, SELECT-only whitelist, 1,000-row cap, 10s timeout, all directly tested |
+| **Tests** | 319 backend tests, 310 passing as of the most recent run |
+
+All numbers link to the evaluation report that produced them; see
+[Evaluation](#evaluation) below.
+
 ## Contents
 
+- [At a glance](#at-a-glance)
 - [Problem](#problem)
 - [How it works](#how-it-works)
 - [Dataset](#dataset)
@@ -71,11 +87,16 @@ mechanism catching exactly the grain mistake described above.
    agent retries with the error fed back (up to 2 attempts total)
 7. The answer, the SQL, and a chart are returned; the exchange is logged
 
-```
-question -> rewrite -> hybrid search -> rerank -> generate SQL -> guarded execute
-                                                        ^                |
-                                                        |                v
-                                                   retry (<=2)  <-  validate result
+```mermaid
+flowchart LR
+    A[Question] --> B[Rewrite]
+    B --> C[Hybrid search]
+    C --> D[Rerank]
+    D --> E[Generate SQL]
+    E --> F[Guarded execute]
+    F --> G[Validate result]
+    G -- fail, retry <= 2 --> E
+    G -- pass --> H[Answer + SQL + chart]
 ```
 
 Full design rationale (why DuckDB, why this semantic layer format, the
@@ -160,6 +181,9 @@ rerank ([`evaluation/results/retrieval_eval.md`](evaluation/results/retrieval_ev
 
 Best approach used in production: **Hybrid + rerank**
 
+<details>
+<summary>How this result was reached: an initial failure, diagnosed and fixed</summary>
+
 The first run of this evaluation actually found keyword-only winning, with
 hybrid + rerank scoring lowest. The full report documents the diagnosis
 (the reranker had too little signal to distinguish short, formulaic metric
@@ -167,6 +191,8 @@ chunks), the fix (adding representative example phrasings to each metric),
 and a genuine trade-off the fix exposed: it measurably *degraded*
 keyword-only search while hybrid stayed robust, real evidence for hybrid
 being the more robust default, not an assumed one.
+
+</details>
 
 ### LLM evaluation
 
@@ -183,10 +209,15 @@ prompts ([`evaluation/results/llm_eval.md`](evaluation/results/llm_eval.md)):
 
 Best approach used in production: **`gpt-4o-mini` / schema-grounded**
 
+<details>
+<summary>Why the free-tier arm is local Ollama, not Groq</summary>
+
 The free-tier arm was originally Groq's hosted `llama-3.3-70b-versatile`.
 It was dropped after its free daily quota was exhausted mid-evaluation
 (full incident writeup in the report) in favour of local Ollama, which has
 no external rate limit to fight.
+
+</details>
 
 ### Self-correction lift
 
