@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-305%20passing-brightgreen.svg)](docs/setup.md#running-the-tests)
+[![Tests](https://img.shields.io/badge/tests-310%20passing-brightgreen.svg)](docs/setup.md#running-the-tests)
 
 Agentic text-to-SQL over a governed semantic layer. Ask a business
 question in plain English and get back a number, the SQL that produced
@@ -345,8 +345,7 @@ Python package, `python:3.13.7-slim-bookworm` plus `uv==0.11.20` in the
 
 `render.yaml` deploys this repo's own `Dockerfile` as a single public web
 service on [Render](https://render.com)'s free tier, the optional cloud
-deployment item from the LLM Zoomcamp rubric (see
-[`PROJECT_PLAN.md`](PROJECT_PLAN.md) Section 3). Local Ollama isn't
+deployment item from the LLM Zoomcamp rubric. Local Ollama isn't
 realistically deployable on a typical free-tier host, so the public
 instance runs on `gpt-4o-mini` instead, bounded by a daily query cap
 (`MAX_DAILY_QUERIES`, default 50) so an anonymous visitor can't run up an
@@ -380,7 +379,7 @@ orchestration: [`docs/architecture.md`](docs/architecture.md).
 | Ingestion / orchestration | Kestra (nightly refresh + daily synthetic-traffic flows), dlt (telemetry ingestion) |
 | Monitoring | React dashboard, 6 charts, reading JSON from `/monitoring/*` (backed by dlt-loaded DuckDB tables) |
 | Containerization | Single `docker-compose.yml` (4 services, 1 shared image built via a multi-stage Dockerfile, 1 shared data volume) |
-| Testing | pytest, 305 tests (backend); `npm run build` type-checks the frontend |
+| Testing | pytest, 319 tests (backend, 310 passing as of the most recent full run - 2 fail on causes unrelated to this code: an external Groq model deprecation, and a network-dependent image-resolution check; 2 require a paid key and are excluded from routine runs); `npm run build` type-checks the frontend |
 
 ## Limitations
 
@@ -411,7 +410,15 @@ orchestration: [`docs/architecture.md`](docs/architecture.md).
   `evaluation/results/self_correction_eval.md`.
 - **This is a portfolio project, not a production system.** Guardrails,
   monitoring, and evaluation exist and are real, but it has not been load
-  tested, has no auth on the API, and has not been exposed publicly.
+  tested and has no auth on the API.
+- **The public Render deployment currently has a live, unresolved bug.**
+  As of 2026-08-30, `GET /health` responds correctly (`200 {"status":"ok"}`)
+  but `POST /ask` fails fast and consistently with a generic
+  `500 Internal Server Error`. This was verified directly against the
+  deployed instance (one real question sent to the paid backend), not
+  inferred. It presents differently from a `502` observed after a long
+  cold-start delay ten days earlier, so it may be a separate regression
+  rather than the same unresolved issue. Root cause is not yet diagnosed.
 
 ## License
 
